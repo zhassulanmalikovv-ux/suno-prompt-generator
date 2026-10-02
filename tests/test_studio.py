@@ -17,6 +17,38 @@ from ui_kz import kz
 
 
 class StudioTests(unittest.TestCase):
+    def test_artist_presets(self):
+        from presets import PRESETS, preset_settings
+        from ui_kz import VOICE_RANGES, TIMBRES
+        from catalog import INSTRUMENTS
+        self.assertGreaterEqual(len(PRESETS), 100)
+        for name in PRESETS:
+            settings = preset_settings(name)
+            family = settings['genre_family']
+            self.assertIn(settings['genre_' + family], GENRE_GROUPS[family], name)
+            voice = settings['voice_type']
+            if voice != 'Дауыссыз':
+                self.assertIn(settings['voice_range_' + voice], VOICE_RANGES[voice], name)
+            self.assertTrue(set(settings['instruments']) <= set(INSTRUMENTS))
+            self.assertTrue(set(settings['voice_timbres']) <= set(TIMBRES))
+            self.assertNotIn(name, settings['custom_notes'])
+        app = AppTest.from_file(str(ROOT / 'app.py'), default_timeout=30).run()
+        app.text_area[0].set_value('Менің өз өлеңім').run()
+        app.selectbox(key='artist_preset').set_value('Трэвис Скотт').run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key='genre_family').value, 'Trap')
+        self.assertEqual(app.slider(key='tempo').value, 140)
+        self.assertEqual(app.selectbox(key='autotune').value, 'Fast-retune trap autotune')
+        app.selectbox(key='artist_preset').set_value('Адель').run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key='voice_type').value, 'Әйел дауысы')
+        self.assertEqual(app.selectbox(key='voice_range_Әйел дауысы').value, 'Меццо-сопрано')
+        self.assertEqual(app.selectbox(key='autotune').value, 'Off / natural uncorrected vocal')
+        self.assertEqual(app.text_area[0].value, 'Менің өз өлеңім')
+        app.selectbox(key='mood').set_value('Peaceful').run()
+        self.assertEqual(app.selectbox(key='mood').value, 'Peaceful')
+        self.assertEqual(len(app.code), 0)
+
     def test_catalog_and_limits(self):
         self.assertGreaterEqual(GENRE_COUNT, 300)
         self.assertGreaterEqual(len(VOICE_PRESETS), 100)
