@@ -42,7 +42,7 @@ STUDIO_CSS = """
     background: #A78BFA; box-shadow: 0 0 10px #A78BFA; }
 .studio-eyebrow { color: #A5B4FC; font-size: .72rem; font-weight: 600;
     letter-spacing: .19em; text-transform: uppercase; margin-bottom: .5rem; }
-.studio-title { font-size: clamp(2.1rem,5vw,3.4rem); font-weight: 800;
+.studio-title { font-size: clamp(2.1rem,5vw,3.4rem) !important; font-weight: 800;
     letter-spacing: -.045em; line-height: 1.15; padding: 0; margin: 0 0 .8rem;
     background: linear-gradient(100deg,#F8FAFC 0%,#C7D2FE 45%,#C084FC 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent !important;
@@ -112,7 +112,7 @@ STUDIO_CSS = """
 .studio-results-label { margin: 2rem 0 .8rem; color: #A5B4FC;
     font-size: .75rem; font-weight: 650; letter-spacing: .16em; }
 @media (max-width: 700px) {
-    .block-container { padding: 2rem 1rem; }
+    .block-container { padding: 4.5rem 1rem 2rem; }
     .studio-topline { margin-bottom: 1.6rem; }
     .st-key-lyrics_card, .st-key-settings_card, .st-key-style_result, .st-key-lyrics_result {
         padding: 1.15rem; border-radius: 18px;
