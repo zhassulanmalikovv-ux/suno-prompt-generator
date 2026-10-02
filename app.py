@@ -6,26 +6,13 @@ import re
 import streamlit as st
 from groq import APIConnectionError, APIError, APIStatusError, AuthenticationError, Groq, RateLimitError
 from catalog import (GENRE_GROUPS, GENRE_COUNT, REGIONAL_STYLES, DEFAULT_REGIONS,
-                     VOICE_PRESETS, DELIVERY, LANGUAGES, INSTRUMENTS, AUTOTUNE,
+                     DELIVERY, LANGUAGES, INSTRUMENTS, AUTOTUNE,
                      REVERB, DELAY, PRODUCTION, MIX_OPTIONS, STRUCTURES)
+
+from ui_kz import kz, VOICE_TYPES, VOICE_RANGES, TIMBRES
 
 MODEL = "openai/gpt-oss-20b"
 MAX_STYLE_LENGTH = 900
-VOICES = {
-    "Қоңыр дауысты қыз / Contralto": "Female contralto, warm dark low register, velvety rounded timbre",
-    "Нәзік әйел дауысы / Soprano": "Female soprano, clear bright upper register, delicate lyrical delivery",
-    "Әйел дауысы / Mezzo-soprano": "Female mezzo-soprano, rich warm middle register, expressive phrasing",
-    "Ер дауысы / Tenor": "Male tenor, resonant bright upper register, lyrical expressive delivery",
-    "Қоңыр ер дауысы / Baritone": "Male baritone, warm rounded chest resonance, rich dark timbre",
-    "Терең ер дауысы / Bass": "Male bass, deep low register, full resonant grounded tone",
-    "Қарлығыңқы дауыс / Raspy": "Warm husky vocal, gentle rasp, textured intimate delivery",
-    "Male Vocal": "Male lead vocal, natural expressive timbre",
-    "Female Vocal": "Female lead vocal, natural expressive timbre",
-    "Choir": "Layered choir with blended harmonies",
-    "Whisper": "Intimate soft whispered vocal",
-    "Duet": "Male and female duet, complementary registers and call-and-response harmonies",
-}
-VOICES.update(VOICE_PRESETS)
 GENRES = {
     "Қазақша той": "Kazakh celebration and wedding dance pop, dombra, festive percussion, catchy chorus",
     "Қазақша мұңды": "Melancholic Kazakh ballad, expressive vocals, gentle piano and strings, slow tempo",
@@ -244,11 +231,11 @@ def validate_result(content: str) -> dict[str, str]:
         raise ValueError("Нәтиже дұрыс форматта емес.")
     for key in ("style_prompt", "structure_lyrics"):
         if not isinstance(result.get(key), str) or not result[key].strip():
-            raise ValueError("ИИ толық нәтиже қайтармады. Қайта көріңіз.")
+            raise ValueError("ЖИ толық нәтиже қайтармады. Қайта көріңіз.")
         result[key] = result[key].strip()
     result["style_prompt"] = " ".join(result["style_prompt"].split())
     if len(result["style_prompt"]) > MAX_STYLE_LENGTH:
-        raise ValueError(f"Style Prompt {MAX_STYLE_LENGTH} символдан асты. Қайта көріңіз.")
+        raise ValueError(f"Стильдік промпт {MAX_STYLE_LENGTH} символдан асты. Қайта көріңіз.")
     if not re.search(r"\[(?:Verse(?: \d+)?|Chorus|Bridge|Outro)\]", result["structure_lyrics"]):
         raise ValueError("Өлең құрылымының тегтері жоқ. Қайта көріңіз.")
     return result
@@ -258,7 +245,7 @@ def generate_prompt(api_key: str, source: str, genre: str, mood: str,
                     voice: str, translate: bool, voice_details: str = "",
                     studio_controls: dict | None = None) -> dict[str, str]:
     payload = json.dumps({"source": source, "genre": genre, "genre_direction": GENRES.get(genre, genre), "mood": mood,
-                          "voice": voice, "voice_direction": VOICES.get(voice, voice),
+                          "voice": voice, "voice_direction": voice,
                           "voice_details": voice_details, "translate_to_english": translate,
                           "studio_controls": studio_controls or {}}, ensure_ascii=False)
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
@@ -272,14 +259,14 @@ def generate_prompt(api_key: str, source: str, genre: str, mood: str,
             choice = response.choices[0]
             message = choice.message
             if getattr(message, "refusal", None):
-                raise ValueError("ИИ бұл сұрауды орындай алмады. Мәтінді өзгертіп көріңіз.")
+                raise ValueError("ЖИ бұл сұрауды орындай алмады. Мәтінді өзгертіп көріңіз.")
             if choice.finish_reason != "stop" or not message.content:
                 raise ValueError("Нәтиже толық аяқталмады. Қысқарақ мәтінмен көріңіз.")
             try:
                 return validate_result(message.content)
             except (ValueError, TypeError) as error:
                 if attempt:
-                    raise ValueError("ИИ нәтижесі талаптарға сай емес. Қайта көріңіз.") from error
+                    raise ValueError("ЖИ нәтижесі талаптарға сай емес. Қайта көріңіз.") from error
                 messages.extend([
                     {"role": "assistant", "content": message.content},
                     {"role": "user", "content": "Correct the output: " + str(error)
@@ -311,19 +298,19 @@ def groq_error_message(error: APIStatusError) -> str:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Suno AI Prompt Studio", page_icon="🎵", layout="wide")
+    st.set_page_config(page_title="Suno — ән промпты студиясы", page_icon="🎵", layout="wide")
     st.markdown(STUDIO_CSS, unsafe_allow_html=True)
     st.markdown("""
         <div class="studio-topline">
-            <div class="studio-brand"><span class="studio-logo" aria-hidden="true">♫</span>SUNO STUDIO</div>
-            <div class="studio-badge">PRO / AI POWERED</div>
+            <div class="studio-brand"><span class="studio-logo" aria-hidden="true">♫</span>SUNO СТУДИЯСЫ</div>
+            <div class="studio-badge">КӘСІБИ / ЖАСАНДЫ ИНТЕЛЛЕКТ</div>
         </div>
-        <div class="studio-eyebrow">FROM WORDS TO MUSIC</div>
-        <h1 class="studio-title">Suno AI Prompt Studio</h1>
+        <div class="studio-eyebrow">СӨЗДЕН ӘУЕНГЕ</div>
+        <h1 class="studio-title">Suno — ән промпты студиясы</h1>
         <p class="studio-subtitle">Идеяңызға әуен сыйлаңыз. Өлеңіңізді Suno AI үшін
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p>
     """, unsafe_allow_html=True)
-    st.caption(f"{GENRE_COUNT} жанр / ішкі жанр · {len(VOICES)} вокал нұсқасы · Студиялық конструктор")
+    st.caption(f"{GENRE_COUNT} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор")
     # Reactive widgets let a genre family immediately change its subgenre/options.
     # Generation remains explicit: changing controls never makes an API call.
     with st.container(key="studio_controls"):
@@ -336,55 +323,71 @@ def main() -> None:
                 source = st.text_area("Өлең мәтіні немесе идеясы", height=300, max_chars=12000,
                                       placeholder="Түнгі қала, сағыныш пен үміт туралы ән...\n\nНемесе дайын өлеңіңізді осында қойыңыз.")
                 st.caption("✦ Мәтіннің бастапқы тілі аударма таңдалмаса сақталады.")
-                language = st.selectbox("Өлеңнің тілі", list(LANGUAGES), key="output_language")
+                language = st.selectbox("Өлеңнің тілі", list(LANGUAGES), key="output_language", format_func=kz, placeholder="Таңдаңыз")
                 custom_language = st.text_input("Басқа тіл немесе диалект (міндетті емес)", max_chars=80,
                                                 placeholder="Тізімде жоқ тілдің атауы")
-                script = st.selectbox("Жазу жүйесі", ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script")
+                script = st.selectbox("Жазу жүйесі", ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script", format_func=kz, placeholder="Таңдаңыз")
         with right:
             with st.container(key="settings_card"):
                 st.markdown('<div class="studio-heading"><span aria-hidden="true">♫</span> Әннің сипаты</div>'
                             '<div class="studio-hint">Өзіңізге сай жанр, эмоция және дауыс таңдаңыз.</div>',
                             unsafe_allow_html=True)
-                family = st.selectbox("Жанр санаты", list(GENRE_GROUPS), key="genre_family")
-                genre = st.selectbox("Жанр / ішкі жанр", GENRE_GROUPS[family], key=f"genre_{family}")
+                family = st.selectbox("Жанр санаты", list(GENRE_GROUPS), key="genre_family", format_func=kz, placeholder="Таңдаңыз")
+                genre = st.selectbox("Жанр / ішкі жанр", GENRE_GROUPS[family], key=f"genre_{family}", format_func=kz, placeholder="Таңдаңыз")
                 regional = st.selectbox("Аймақтық стиль", ["Auto / жанрға сай"] + REGIONAL_STYLES.get(family, DEFAULT_REGIONS),
-                                         key=f"region_{family}")
+                                         key=f"region_{family}", format_func=kz, placeholder="Таңдаңыз")
                 mood = st.selectbox("Көңіл-күй", ["Energetic", "Melancholic", "Uplifting", "Romantic",
-                                                    "Dark", "Peaceful", "Epic", "Nostalgic"])
-                voice = st.selectbox("Дауыс түрі", list(VOICES), key="voice")
+                                                    "Dark", "Peaceful", "Epic", "Nostalgic"], format_func=kz, placeholder="Таңдаңыз")
+                voice_type_col, voice_range_col = st.columns(2)
+                with voice_type_col:
+                    voice_type = st.selectbox("Дауыс түрі", list(VOICE_TYPES), key="voice_type")
+                with voice_range_col:
+                    if voice_type != "Дауыссыз":
+                        voice_range = st.selectbox("Дауыс диапазоны", list(VOICE_RANGES[voice_type]),
+                                                   key=f"voice_range_{voice_type}")
+                    else:
+                        voice_range = None
+                        st.caption("Ән аспаптармен орындалады.")
+                timbres = st.multiselect("Дауыс тембрі", list(TIMBRES), max_selections=4,
+                                        key="voice_timbres", disabled=voice_type == "Дауыссыз",
+                                        placeholder="Қоңыр, мұрындық, жарқын... таңдаңыз")
+                voice = VOICE_TYPES[voice_type]
+                if voice_range is not None:
+                    voice += ", " + VOICE_RANGES[voice_type][voice_range]
+                    voice += ", " + ", ".join(TIMBRES[t] + " timbre" for t in timbres)
                 voice_details = st.text_input("Дауысқа қосымша сипаттама", max_chars=500,
                                               placeholder="Мысалы: қоңыр, барқыт тембр, жеңіл вибрато",
                                               help="Дауыс, орындау мәнері немесе аранжировкаға қатысты қалауыңызды жазыңыз.")
         with st.expander("🎙 Вокал және орындау мәнері"):
-            delivery = st.multiselect("Орындау тәсілдері", DELIVERY, max_selections=4, key="delivery")
-            backing = st.selectbox("Бэк-вокал", MIX_OPTIONS["Бэк-вокал"], key="backing")
-            autotune = st.selectbox("Autotune / pitch correction", AUTOTUNE, key="autotune")
+            delivery = st.multiselect("Орындау тәсілдері", DELIVERY, max_selections=4, key="delivery", format_func=kz, placeholder="Таңдаңыз")
+            backing = st.selectbox("Бэк-вокал", MIX_OPTIONS["Бэк-вокал"], key="backing", format_func=kz, placeholder="Таңдаңыз")
+            autotune = st.selectbox("Автотюн / дыбыс биіктігін түзету", AUTOTUNE, key="autotune", format_func=kz, placeholder="Таңдаңыз")
         with st.expander("🎼 Аспаптар, ырғақ және аранжировка"):
-            blend = st.multiselect("Қосымша жанрлар / fusion", sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
-                                    max_selections=3, key="blend")
-            instruments = st.multiselect("Аспаптар", INSTRUMENTS, max_selections=8, key="instruments")
+            blend = st.multiselect("Қосымша жанрлар / үйлесім", sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
+                                    max_selections=3, key="blend", format_func=kz, placeholder="Таңдаңыз")
+            instruments = st.multiselect("Аспаптар", INSTRUMENTS, max_selections=8, key="instruments", format_func=kz, placeholder="Таңдаңыз")
             auto_tempo = st.checkbox("Темпті жанрға сай автоматты таңдау", value=True, key="auto_tempo")
-            tempo = st.slider("Темп / BPM", 40, 240, 100, disabled=auto_tempo, key="tempo")
-            meter = st.selectbox("Өлшем / groove", ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter")
-            structure = st.selectbox("Ән құрылымы", STRUCTURES, key="structure")
-            dynamics = st.selectbox("Динамика", MIX_OPTIONS["Динамика"], key="dynamics")
+            tempo = st.slider("Темп / минутына соққы", 40, 240, 100, disabled=auto_tempo, key="tempo")
+            meter = st.selectbox("Өлшем / ырғақ", ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter", format_func=kz, placeholder="Таңдаңыз")
+            structure = st.selectbox("Ән құрылымы", STRUCTURES, key="structure", format_func=kz, placeholder="Таңдаңыз")
+            dynamics = st.selectbox("Динамика", MIX_OPTIONS["Динамика"], key="dynamics", format_func=kz, placeholder="Таңдаңыз")
         with st.expander("🎛 Студия, эффектілер және микс"):
             fx_left, fx_right = st.columns(2)
             with fx_left:
-                production = st.selectbox("Жазба / продакшн", PRODUCTION, key="production")
-                reverb = st.selectbox("Reverb / кеңістік", REVERB, key="reverb")
-                delay = st.selectbox("Delay / echo", DELAY, key="delay")
+                production = st.selectbox("Жазба / дыбыс өңдеу", PRODUCTION, key="production", format_func=kz, placeholder="Таңдаңыз")
+                reverb = st.selectbox("Реверберация / кеңістік", REVERB, key="reverb", format_func=kz, placeholder="Таңдаңыз")
+                delay = st.selectbox("Кідіріс / жаңғырық", DELAY, key="delay", format_func=kz, placeholder="Таңдаңыз")
             with fx_right:
-                compression = st.selectbox("Компрессия", MIX_OPTIONS["Компрессия"], key="compression")
-                eq = st.selectbox("EQ / тон", MIX_OPTIONS["EQ / тон"], key="eq")
-                saturation = st.selectbox("Сатурация", MIX_OPTIONS["Сатурация"], key="saturation")
-            stereo = st.selectbox("Стерео", MIX_OPTIONS["Стерео"], key="stereo")
-            placement = st.selectbox("Вокалдың микстегі орны", MIX_OPTIONS["Вокалдың микстегі орны"], key="placement")
+                compression = st.selectbox("Компрессия", MIX_OPTIONS["Компрессия"], key="compression", format_func=kz, placeholder="Таңдаңыз")
+                eq = st.selectbox("Эквалайзер / үн", MIX_OPTIONS["EQ / тон"], key="eq", format_func=kz, placeholder="Таңдаңыз")
+                saturation = st.selectbox("Сатурация", MIX_OPTIONS["Сатурация"], key="saturation", format_func=kz, placeholder="Таңдаңыз")
+            stereo = st.selectbox("Стерео", MIX_OPTIONS["Стерео"], key="stereo", format_func=kz, placeholder="Таңдаңыз")
+            placement = st.selectbox("Вокалдың микстегі орны", MIX_OPTIONS["Вокалдың микстегі орны"], key="placement", format_func=kz, placeholder="Таңдаңыз")
         with st.expander("✎ Еркін эксперимент және шектеулер"):
             custom_notes = st.text_area("Өзіңіздің музыкалық бағытыңыз", max_chars=1000, height=100, key="custom_notes",
-                                        placeholder="Мысалы: домбыра + LA trap, жұмсақ баритон, драмалық финал")
+                                        placeholder="Мысалы: домбыра + Лос-Анджелес трэбі, жұмсақ баритон, драмалық финал")
             avoid = st.text_input("Қоспау керек элементтер", max_chars=300, key="avoid",
-                                  placeholder="Мысалы: айқай, ауыр дисторшн, ұзақ intro")
+                                  placeholder="Мысалы: айқай, ауыр дисторшн, ұзақ кіріспе")
         output_language = custom_language.strip() or LANGUAGES[language]
         translate = output_language == "English"
         controls = {"family": family, "regional_style": regional, "blend_genres": blend,
@@ -394,10 +397,11 @@ def main() -> None:
                     "structure": structure, "dynamics": dynamics, "production": production,
                     "reverb": reverb, "delay": delay, "compression": compression,
                     "eq": eq, "saturation": saturation, "stereo": stereo,
-                    "vocal_placement": placement, "custom_notes": custom_notes, "avoid": avoid}
+                    "vocal_placement": placement, "voice_type": voice_type, "voice_range": voice_range,
+                    "voice_timbres": timbres if voice_type != "Дауыссыз" else [], "custom_notes": custom_notes, "avoid": avoid}
         with st.container(key="generate_action"):
-            submitted = st.button("✦ Generate Suno Prompt", type="primary", use_container_width=True)
-        st.caption(f"Мәтін генерация кезінде Groq-қа жіберіледі · Style Prompt ≤ {MAX_STYLE_LENGTH} символ")
+            submitted = st.button("✦ Suno промптын жасау", type="primary", use_container_width=True)
+        st.caption(f"Мәтін генерация кезінде Groq-қа жіберіледі · Стильдік промпт ≤ {MAX_STYLE_LENGTH} символ")
     if submitted:
         st.session_state.pop("suno_result", None)
         if not source.strip():
@@ -431,24 +435,24 @@ def main() -> None:
     if "suno_result" in st.session_state:
         current_selection = json.dumps([source, genre, mood, voice, voice_details, controls], ensure_ascii=False, sort_keys=True)
         if st.session_state.get("result_selection") != current_selection:
-            st.info("Баптаулар өзгерді. Төменде алдыңғы нәтиже көрсетілген; жаңасын алу үшін Generate басыңыз.")
+            st.info("Баптаулар өзгерді. Төменде алдыңғы нәтиже көрсетілген; жаңасын алу үшін «Промпт жасау» басыңыз.")
         result = st.session_state["suno_result"]
-        st.markdown('<div class="studio-results-label">✦ YOUR SUNO PROMPT IS READY</div>', unsafe_allow_html=True)
+        st.markdown('<div class="studio-results-label">✦ SUNO ПРОМПТЫ ДАЙЫН</div>', unsafe_allow_html=True)
         style_col, lyrics_col = st.columns([1, 1.45], gap="large")
         with style_col:
             with st.container(key="style_result"):
-                st.markdown('<div class="studio-heading"><span aria-hidden="true">◈</span> Style Prompt</div>',
+                st.markdown('<div class="studio-heading"><span aria-hidden="true">◈</span> Стильдік промпт</div>',
                             unsafe_allow_html=True)
-                st.caption(f'Suno → Style of Music · {len(result["style_prompt"])} / {MAX_STYLE_LENGTH} символ')
+                st.caption(f'Suno → музыка стилі · {len(result["style_prompt"])} / {MAX_STYLE_LENGTH} символ')
                 st.code(result["style_prompt"], language=None, wrap_lines=True)
                 st.caption("Аспаптар, эмоция және ритм — бір промптта.")
         with lyrics_col:
             with st.container(key="lyrics_result"):
-                st.markdown('<div class="studio-heading"><span aria-hidden="true">≡</span> Formatted Lyrics</div>',
+                st.markdown('<div class="studio-heading"><span aria-hidden="true">≡</span> Құрылымды ән мәтіні</div>',
                             unsafe_allow_html=True)
-                st.caption("Suno → Lyrics · Copy батырмасымен көшіріңіз")
+                st.caption("Suno → ән мәтіні · Көшіру белгішесін басыңыз")
                 st.code(result["structure_lyrics"], language=None, wrap_lines=True)
-    st.markdown('<div class="studio-footer">CRAFTED FOR YOUR SOUND · POWERED BY AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="studio-footer">ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН</div>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
