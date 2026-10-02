@@ -1,4 +1,4 @@
-# Suno AI Prompt Generator
+# Suno AI Prompt Studio
 
 Streamlit және OpenAI `gpt-4o-mini` негізіндегі қосымша: өлең мәтінін немесе идеяны Suno AI үшін екі бөлек, көшіруге дайын нәтижеге айналдырады.
 
@@ -6,6 +6,7 @@ Streamlit және OpenAI `gpt-4o-mini` негізіндегі қосымша: �
 - **Structure Lyrics:** `[Verse 1]`, `[Chorus]`, `[Bridge]`, `[Outro]` және қажет болса `[Instrumental Drop]` тегтері бар өлең.
 - **Translate lyrics to English:** мағынасын сақтайтын ағылшынша аударма.
 - Әр нәтиже `st.code()` блогында стандартты Copy батырмасымен беріледі.
+- Premium dark интерфейс: градиентті тақырып, PRO / AI Powered бейджі, glassmorphism карточкалар, неон батырма және мобильді экранға бейімделетін екі баған.
 
 ## Жергілікті іске қосу
 
