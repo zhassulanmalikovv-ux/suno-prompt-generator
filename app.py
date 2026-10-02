@@ -4,9 +4,9 @@ import json
 import re
 
 import streamlit as st
-from groq import APIConnectionError, APIError, AuthenticationError, Groq, RateLimitError
+from groq import APIConnectionError, APIError, APIStatusError, AuthenticationError, Groq, RateLimitError
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-20b"
 MAX_STYLE_LENGTH = 120
 GENRES = {
     "Қазақша той": "Kazakh celebration and wedding dance pop, dombra, festive percussion, catchy chorus",
@@ -231,6 +231,28 @@ def generate_prompt(api_key: str, source: str, genre: str, mood: str,
     raise ValueError("Нәтиже алынбады.")
 
 
+def groq_error_message(error: APIStatusError) -> str:
+    """Show actionable diagnostics without exposing server text or credentials."""
+    status = error.status_code
+    body = error.body if isinstance(error.body, dict) else {}
+    detail = body.get("error", body)
+    code = detail.get("code", "") if isinstance(detail, dict) else ""
+    if status in (403, 404) or code in ("model_not_found", "model_decommissioned"):
+        advice = ("Модель қолжетімсіз немесе Groq жобасында оған рұқсат жоқ. "
+                  "Groq Console → Project → Model Permissions баптауларын тексеріңіз.")
+    elif status in (400, 422) and code == "json_validate_failed":
+        advice = "Модель JSON нәтижесін құра алмады. Мәтінді қысқартып, қайта көріңіз."
+    elif status in (400, 413, 422):
+        advice = "Groq сұрауды қабылдамады. Мәтінді қысқартып, модель баптауын тексеріңіз."
+    elif status >= 500:
+        advice = "Groq серверінде уақытша ақау бар. Кейінірек қайта көріңіз."
+    else:
+        advice = "Groq сұрауды орындай алмады. Groq Console жобасының баптауларын тексеріңіз."
+    safe_code = code if code in {"model_not_found", "model_decommissioned", "json_validate_failed"} else None
+    suffix = f" · {safe_code}" if safe_code else ""
+    return f"{advice} (HTTP {status}{suffix})"
+
+
 def main() -> None:
     st.set_page_config(page_title="Suno AI Prompt Studio", page_icon="🎵", layout="wide")
     st.markdown(STUDIO_CSS, unsafe_allow_html=True)
@@ -289,8 +311,10 @@ def main() -> None:
                     st.error("Groq сұрау лимитіне жетті. Кейінірек қайталап көріңіз.")
                 except APIConnectionError:
                     st.error("Groq-қа қосылу мүмкін болмады. Кейінірек қайталап көріңіз.")
+                except APIStatusError as error:
+                    st.error(groq_error_message(error))
                 except APIError:
-                    st.error("Groq қызметінде қате болды. Кейінірек қайталап көріңіз.")
+                    st.error("Groq SDK сұрауды өңдей алмады. Қосымшаны қайта іске қосып көріңіз.")
                 except ValueError as error:
                     st.error(str(error))
     if "suno_result" in st.session_state:
