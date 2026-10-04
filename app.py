@@ -199,7 +199,7 @@ STUDIO_CSS = """
 .studio-badge { color: #8ee9e2; background: #63e6df08; border-color: #63e6df26; }
 .studio-badge::before { background: #63e6df; box-shadow: 0 0 12px #63e6df70; }
 .studio-hero { display:grid; grid-template-columns: 1.3fr 1fr; align-items:center; min-height:360px; gap:2rem; padding:3rem 0 2rem; }
-.studio-title { font-size:clamp(2.4rem,4.5vw,4.5rem) !important; font-weight:650; line-height:1.06; letter-spacing:-.055em; background:linear-gradient(115deg,#fff 20%,#d9d4f4 65%,#91e5e1); }
+.studio-title { font-size:clamp(2.4rem,4.5vw,4.5rem) !important; font-weight:650; line-height:1.06; letter-spacing:-.055em; background-image:linear-gradient(115deg,#fff 20%,#d9d4f4 65%,#91e5e1); }
 .studio-subtitle { max-width:540px; margin:1.3rem 0; font-size:1.04rem; }
 .studio-eyebrow { color:#9a92b5; letter-spacing:.17em; font-size:.68rem; }
 .studio-hero-art { position:relative; height:290px; perspective:800px; display:flex; align-items:center; justify-content:center; }
