@@ -294,6 +294,11 @@ LIGHT_CSS = """
 [data-testid="stTextInput"] input::placeholder,[data-testid="stTextArea"] textarea::placeholder {color:#596273 !important;opacity:1}
 [data-testid="stSelectbox"] [role="combobox"] {border:1px solid #CBD0DC !important;border-radius:12px}
 .studio-hero-art { opacity:.3; }
+
+.react-aria-ComboBox [role="group"] {background:#F0F2F7 !important;border-color:#CBD0DC !important}
+.react-aria-ComboBox input {background:#F0F2F7 !important;color:#20232D !important;-webkit-text-fill-color:#20232D !important}
+.react-aria-ComboBox input::placeholder {color:#596273 !important;-webkit-text-fill-color:#596273 !important;opacity:1}
+.react-aria-ComboBox button {background:transparent !important;color:#20232D !important}
 </style>
 """
 
