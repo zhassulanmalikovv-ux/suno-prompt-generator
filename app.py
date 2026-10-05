@@ -2,6 +2,10 @@
 
 import json
 import re
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+from uuid import UUID
 
 import streamlit as st
 from groq import APIConnectionError, APIError, APIStatusError, AuthenticationError, Groq, RateLimitError
@@ -240,6 +244,75 @@ def apply_selected_preset():
         st.session_state["applied_preset"] = name
 
 
+
+MAX_MP3_BYTES = 40 * 1024 * 1024
+
+
+def parse_suno_song_id(link: str) -> str:
+    """Accept only canonical Suno song URLs with a UUID."""
+    parsed = urlparse(link.strip())
+    if (parsed.scheme != "https" or parsed.hostname not in {"suno.com", "www.suno.com"}
+            or parsed.username or parsed.password or parsed.port not in (None, 443)):
+        raise ValueError("https://suno.com/song/... форматындағы сілтемені енгізіңіз.")
+    match = re.fullmatch(r"/song/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/?", parsed.path)
+    if not match:
+        raise ValueError("Сілтемеде дұрыс ән ID-сі жоқ. Suno әнінің толық сілтемесін көшіріңіз.")
+    return str(UUID(match.group(1)))
+
+
+@st.cache_data(ttl=900, max_entries=12, show_spinner=False)
+def fetch_suno_mp3(song_id: str) -> bytes:
+    """Download bounded audio from the fixed public CDN, never a supplied host."""
+    canonical = str(UUID(song_id))
+    request = Request(f"https://cdn1.suno.ai/{canonical}.mp3",
+                      headers={"User-Agent": "SunoPromptStudio/1.0"})
+    with urlopen(request, timeout=25) as response:
+        length = response.headers.get("Content-Length")
+        if length and int(length) > MAX_MP3_BYTES:
+            raise ValueError("Файл тым үлкен: ең көбі 40 МБ.")
+        audio = response.read(MAX_MP3_BYTES + 1)
+    if len(audio) > MAX_MP3_BYTES:
+        raise ValueError("Файл тым үлкен: ең көбі 40 МБ.")
+    if not audio or not (audio.startswith(b"ID3") or
+                         (len(audio) >= 2 and audio[0] == 255 and audio[1] & 224 == 224)):
+        raise ValueError("CDN жарамды MP3 файлын қайтармады.")
+    return audio
+
+
+def render_downloader() -> None:
+    st.subheader("♫ Suno Downloader")
+    st.caption("Suno әнінің толық сілтемесін енгізіп, қолжетімді MP3 файлын ойнатыңыз немесе жүктеңіз.")
+    with st.form("suno_downloader_form"):
+        link = st.text_input("Suno әнінің сілтемесі", placeholder="https://suno.com/song/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+                             max_chars=2048, key="download_song_url")
+        load = st.form_submit_button("↓ MP3 файлын табу")
+    if load:
+        st.session_state.pop("downloaded_song", None)
+        try:
+            song_id = parse_suno_song_id(link)
+            with st.spinner("MP3 жүктеліп жатыр..."):
+                audio = fetch_suno_mp3(song_id)
+            st.session_state["downloaded_song"] = {"id": song_id, "audio": audio, "link": link.strip()}
+        except ValueError as error:
+            st.error(str(error))
+        except HTTPError as error:
+            if error.code in (403, 404):
+                st.error("Әннің MP3 файлы ашық CDN-де қолжетімсіз. Сілтемені және әннің қолжетімділігін тексеріңіз.")
+            else:
+                st.error(f"CDN файлды қайтармады (HTTP {error.code}). Кейінірек қайталаңыз.")
+        except (URLError, TimeoutError, OSError):
+            st.error("Аудио серверіне қосылу мүмкін болмады. Кейінірек қайталаңыз.")
+    song = st.session_state.get("downloaded_song")
+    if song:
+        if link.strip() != song["link"]:
+            st.info("Төменде алдыңғы сілтеменің аудиосы көрсетілген. Жаңасын алу үшін «MP3 файлын табу» басыңыз.")
+        st.audio(song["audio"], format="audio/mpeg")
+        st.download_button("↓ MP3 жүктеп алу", data=song["audio"],
+                           file_name=f'suno-{song["id"]}.mp3', mime="audio/mpeg",
+                           key="download_mp3_button")
+        st.caption(f'Ән ID: {song["id"]} · {len(song["audio"]) / (1024 * 1024):.1f} МБ')
+
+
 def main() -> None:
     st.set_page_config(page_title="Suno — ән промпты студиясы", page_icon="🎵", layout="wide")
     light = st.toggle("☀ Күн режимі", value=True, key="light_mode")
@@ -257,160 +330,164 @@ def main() -> None:
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p></div><div class="studio-hero-art" aria-hidden="true"><div class="studio-orbit"></div><div class="studio-orbit two"></div><div class="studio-orbit three"></div><div class="studio-core"></div><div class="studio-art-label">IDEA → SOUND</div></div></div>
     """, unsafe_allow_html=True)
     st.caption(f"{GENRE_COUNT} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор")
-    with st.container(key="preset_library"):
-        st.markdown('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>', unsafe_allow_html=True)
-        st.subheader("✦ Орындаушыдан шабыт алыңыз")
-        st.caption("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз.")
-        preset_group = st.selectbox("Пресет бағыты", ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group")
-        choices = [name for name, preset in PRESETS.items() if preset_group == "Барлығы" or preset["category"] == preset_group]
-        st.selectbox("Әнші немесе топ пресеті", sorted(choices), index=None,
-                     placeholder=f"{len(choices)} орындаушы арасынан іздеңіз", key="artist_preset",
-                     on_change=apply_selected_preset)
-        st.caption("Бұл — жалпы музыкалық сипаттарға негізделген бастапқы баптау. Дауыс көшірмесі емес; жаңа әуен мен мәтінге арналған.")
-        if st.session_state.get("applied_preset"):
-            st.success(f"{st.session_state['applied_preset']} бағыты қолданылды. Баптауларды еркін өзгерте аласыз.")
-    st.markdown('<div class="studio-eyebrow" style="margin-top:2rem">ӨЗ ӘНІҢІЗДІ ҚҰРАСТЫРЫҢЫЗ</div>', unsafe_allow_html=True)
-    # Reactive widgets let a genre family immediately change its subgenre/options.
-    # Generation remains explicit: changing controls never makes an API call.
-    with st.container(key="studio_controls"):
-        left, right = st.columns([1.45, 1], gap="large")
-        with left:
-            with st.container(key="lyrics_card"):
-                st.markdown('<div id="lyrics-window" class="studio-heading"><span aria-hidden="true">✎</span> Өлеңіңіз / идеяңыз</div>'
-                            '<div class="studio-hint">Әр ән бір ойдан басталады. Өз мәтініңізді немесе идеяңызды жазыңыз.</div>',
-                            unsafe_allow_html=True)
-                source = st.text_area("Өлең мәтіні немесе идеясы", height=300, max_chars=12000,
-                                      placeholder="Түнгі қала, сағыныш пен үміт туралы ән...\n\nНемесе дайын өлеңіңізді осында қойыңыз.")
-                st.caption("✦ Мәтіннің бастапқы тілі аударма таңдалмаса сақталады.")
-                language = st.selectbox("Өлеңнің тілі", list(LANGUAGES), key="output_language", format_func=kz, placeholder="Таңдаңыз")
-                custom_language = st.text_input("Басқа тіл немесе диалект (міндетті емес)", max_chars=80,
-                                                placeholder="Тізімде жоқ тілдің атауы")
-                script = st.selectbox("Жазу жүйесі", ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script", format_func=kz, placeholder="Таңдаңыз")
-        with right:
-            with st.container(key="settings_card"):
-                st.markdown('<div id="settings-window" class="studio-heading"><span aria-hidden="true">♫</span> Әннің сипаты</div>'
-                            '<div class="studio-hint">Өзіңізге сай жанр, эмоция және дауыс таңдаңыз.</div>',
-                            unsafe_allow_html=True)
-                family = st.selectbox("Жанр санаты", list(GENRE_GROUPS), key="genre_family", format_func=kz, placeholder="Таңдаңыз")
-                genre = st.selectbox("Жанр / ішкі жанр", GENRE_GROUPS[family], key=f"genre_{family}", format_func=kz, placeholder="Таңдаңыз")
-                regional = st.selectbox("Аймақтық стиль", ["Auto / жанрға сай"] + REGIONAL_STYLES.get(family, DEFAULT_REGIONS),
-                                         key=f"region_{family}", format_func=kz, placeholder="Таңдаңыз")
-                mood = st.selectbox("Көңіл-күй", ["Energetic", "Melancholic", "Uplifting", "Romantic",
-                                                    "Dark", "Peaceful", "Epic", "Nostalgic"], key="mood", format_func=kz, placeholder="Таңдаңыз")
-                voice_type_col, voice_range_col = st.columns(2)
-                with voice_type_col:
-                    voice_type = st.selectbox("Дауыс түрі", list(VOICE_TYPES), key="voice_type")
-                with voice_range_col:
-                    if voice_type != "Дауыссыз":
-                        voice_range = st.selectbox("Дауыс диапазоны", list(VOICE_RANGES[voice_type]),
-                                                   key=f"voice_range_{voice_type}")
-                    else:
-                        voice_range = None
-                        st.caption("Ән аспаптармен орындалады.")
-                timbres = st.multiselect("Дауыс тембрі", list(TIMBRES), max_selections=4,
-                                        key="voice_timbres", disabled=voice_type == "Дауыссыз",
-                                        placeholder="Қоңыр, мұрындық, жарқын... таңдаңыз")
-                voice = VOICE_TYPES[voice_type]
-                if voice_range is not None:
-                    voice += ", " + VOICE_RANGES[voice_type][voice_range]
-                    voice += ", " + ", ".join(TIMBRES[t] + " timbre" for t in timbres)
-                voice_details = st.text_input("Дауысқа қосымша сипаттама", max_chars=500, key="voice_details",
-                                              placeholder="Мысалы: қоңыр, барқыт тембр, жеңіл вибрато",
-                                              help="Дауыс, орындау мәнері немесе аранжировкаға қатысты қалауыңызды жазыңыз.")
-        with st.expander("🎙 Вокал және орындау мәнері"):
-            delivery = st.multiselect("Орындау тәсілдері", DELIVERY, max_selections=4, key="delivery", format_func=kz, placeholder="Таңдаңыз")
-            backing = st.selectbox("Бэк-вокал", MIX_OPTIONS["Бэк-вокал"], key="backing", format_func=kz, placeholder="Таңдаңыз")
-            autotune = st.selectbox("Автотюн / дыбыс биіктігін түзету", AUTOTUNE, key="autotune", format_func=kz, placeholder="Таңдаңыз")
-        with st.expander("🎼 Аспаптар, ырғақ және аранжировка"):
-            blend = st.multiselect("Қосымша жанрлар / үйлесім", sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
-                                    max_selections=3, key="blend", format_func=kz, placeholder="Таңдаңыз")
-            instruments = st.multiselect("Аспаптар", INSTRUMENTS, max_selections=8, key="instruments", format_func=kz, placeholder="Таңдаңыз")
-            auto_tempo = st.checkbox("Темпті жанрға сай автоматты таңдау", value=True, key="auto_tempo")
-            tempo = st.slider("Темп / минутына соққы", 40, 240, 100, disabled=auto_tempo, key="tempo")
-            meter = st.selectbox("Өлшем / ырғақ", ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter", format_func=kz, placeholder="Таңдаңыз")
-            structure = st.selectbox("Ән құрылымы", STRUCTURES, key="structure", format_func=kz, placeholder="Таңдаңыз")
-            dynamics = st.selectbox("Динамика", MIX_OPTIONS["Динамика"], key="dynamics", format_func=kz, placeholder="Таңдаңыз")
-        with st.expander("🎛 Студия, эффектілер және микс"):
-            fx_left, fx_right = st.columns(2)
-            with fx_left:
-                production = st.selectbox("Жазба / дыбыс өңдеу", PRODUCTION, key="production", format_func=kz, placeholder="Таңдаңыз")
-                reverb = st.selectbox("Реверберация / кеңістік", REVERB, key="reverb", format_func=kz, placeholder="Таңдаңыз")
-                delay = st.selectbox("Кідіріс / жаңғырық", DELAY, key="delay", format_func=kz, placeholder="Таңдаңыз")
-            with fx_right:
-                compression = st.selectbox("Компрессия", MIX_OPTIONS["Компрессия"], key="compression", format_func=kz, placeholder="Таңдаңыз")
-                eq = st.selectbox("Эквалайзер / үн", MIX_OPTIONS["EQ / тон"], key="eq", format_func=kz, placeholder="Таңдаңыз")
-                saturation = st.selectbox("Сатурация", MIX_OPTIONS["Сатурация"], key="saturation", format_func=kz, placeholder="Таңдаңыз")
-            stereo = st.selectbox("Стерео", MIX_OPTIONS["Стерео"], key="stereo", format_func=kz, placeholder="Таңдаңыз")
-            placement = st.selectbox("Вокалдың микстегі орны", MIX_OPTIONS["Вокалдың микстегі орны"], key="placement", format_func=kz, placeholder="Таңдаңыз")
-        with st.expander("✎ Еркін эксперимент және шектеулер"):
-            custom_notes = st.text_area("Өзіңіздің музыкалық бағытыңыз", max_chars=1000, height=100, key="custom_notes",
-                                        placeholder="Мысалы: домбыра + Лос-Анджелес трэбі, жұмсақ баритон, драмалық финал")
-            avoid = st.text_input("Қоспау керек элементтер", max_chars=300, key="avoid",
-                                  placeholder="Мысалы: айқай, ауыр дисторшн, ұзақ кіріспе")
-        output_language = custom_language.strip() or LANGUAGES[language]
-        translate = output_language == "English"
-        controls = {"family": family, "regional_style": regional, "blend_genres": blend,
-                    "output_language": output_language, "script": script, "delivery": delivery,
-                    "backing_vocals": backing, "autotune": autotune, "instruments": instruments,
-                    "tempo_bpm": "Auto" if auto_tempo else tempo, "meter": meter,
-                    "structure": structure, "dynamics": dynamics, "production": production,
-                    "reverb": reverb, "delay": delay, "compression": compression,
-                    "eq": eq, "saturation": saturation, "stereo": stereo,
-                    "vocal_placement": placement, "voice_type": voice_type, "voice_range": voice_range,
-                    "voice_timbres": timbres if voice_type != "Дауыссыз" else [], "custom_notes": custom_notes, "avoid": avoid}
-        with st.container(key="generate_action"):
-            submitted = st.button("✦ Suno промптын жасау", type="primary", use_container_width=True)
-        st.caption(f"Мәтін генерация кезінде Groq-қа жіберіледі · Стильдік промпт ≤ {MAX_STYLE_LENGTH} символ")
-    if submitted:
-        st.session_state.pop("suno_result", None)
-        if not source.strip():
-            st.warning("Алдымен өлең мәтінін немесе идеяңызды енгізіңіз.")
-        else:
-            try:
-                api_key = st.secrets["GROQ_API_KEY"]
-            except (KeyError, FileNotFoundError):
-                api_key = None
-            if not isinstance(api_key, str) or not api_key.strip():
-                st.error('GROQ_API_KEY табылмады. Оны Streamlit Secrets баптауларына қосыңыз.')
+    studio_tab, downloader_tab = st.tabs(["♫ Промпт студиясы", "↓ Suno Downloader"])
+    with studio_tab:
+        with st.container(key="preset_library"):
+            st.markdown('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>', unsafe_allow_html=True)
+            st.subheader("✦ Орындаушыдан шабыт алыңыз")
+            st.caption("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз.")
+            preset_group = st.selectbox("Пресет бағыты", ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group")
+            choices = [name for name, preset in PRESETS.items() if preset_group == "Барлығы" or preset["category"] == preset_group]
+            st.selectbox("Әнші немесе топ пресеті", sorted(choices), index=None,
+                         placeholder=f"{len(choices)} орындаушы арасынан іздеңіз", key="artist_preset",
+                         on_change=apply_selected_preset)
+            st.caption("Бұл — жалпы музыкалық сипаттарға негізделген бастапқы баптау. Дауыс көшірмесі емес; жаңа әуен мен мәтінге арналған.")
+            if st.session_state.get("applied_preset"):
+                st.success(f"{st.session_state['applied_preset']} бағыты қолданылды. Баптауларды еркін өзгерте аласыз.")
+        st.markdown('<div class="studio-eyebrow" style="margin-top:2rem">ӨЗ ӘНІҢІЗДІ ҚҰРАСТЫРЫҢЫЗ</div>', unsafe_allow_html=True)
+        # Reactive widgets let a genre family immediately change its subgenre/options.
+        # Generation remains explicit: changing controls never makes an API call.
+        with st.container(key="studio_controls"):
+            left, right = st.columns([1.45, 1], gap="large")
+            with left:
+                with st.container(key="lyrics_card"):
+                    st.markdown('<div id="lyrics-window" class="studio-heading"><span aria-hidden="true">✎</span> Өлеңіңіз / идеяңыз</div>'
+                                '<div class="studio-hint">Әр ән бір ойдан басталады. Өз мәтініңізді немесе идеяңызды жазыңыз.</div>',
+                                unsafe_allow_html=True)
+                    source = st.text_area("Өлең мәтіні немесе идеясы", height=300, max_chars=12000,
+                                          placeholder="Түнгі қала, сағыныш пен үміт туралы ән...\n\nНемесе дайын өлеңіңізді осында қойыңыз.")
+                    st.caption("✦ Мәтіннің бастапқы тілі аударма таңдалмаса сақталады.")
+                    language = st.selectbox("Өлеңнің тілі", list(LANGUAGES), key="output_language", format_func=kz, placeholder="Таңдаңыз")
+                    custom_language = st.text_input("Басқа тіл немесе диалект (міндетті емес)", max_chars=80,
+                                                    placeholder="Тізімде жоқ тілдің атауы")
+                    script = st.selectbox("Жазу жүйесі", ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script", format_func=kz, placeholder="Таңдаңыз")
+            with right:
+                with st.container(key="settings_card"):
+                    st.markdown('<div id="settings-window" class="studio-heading"><span aria-hidden="true">♫</span> Әннің сипаты</div>'
+                                '<div class="studio-hint">Өзіңізге сай жанр, эмоция және дауыс таңдаңыз.</div>',
+                                unsafe_allow_html=True)
+                    family = st.selectbox("Жанр санаты", list(GENRE_GROUPS), key="genre_family", format_func=kz, placeholder="Таңдаңыз")
+                    genre = st.selectbox("Жанр / ішкі жанр", GENRE_GROUPS[family], key=f"genre_{family}", format_func=kz, placeholder="Таңдаңыз")
+                    regional = st.selectbox("Аймақтық стиль", ["Auto / жанрға сай"] + REGIONAL_STYLES.get(family, DEFAULT_REGIONS),
+                                             key=f"region_{family}", format_func=kz, placeholder="Таңдаңыз")
+                    mood = st.selectbox("Көңіл-күй", ["Energetic", "Melancholic", "Uplifting", "Romantic",
+                                                        "Dark", "Peaceful", "Epic", "Nostalgic"], key="mood", format_func=kz, placeholder="Таңдаңыз")
+                    voice_type_col, voice_range_col = st.columns(2)
+                    with voice_type_col:
+                        voice_type = st.selectbox("Дауыс түрі", list(VOICE_TYPES), key="voice_type")
+                    with voice_range_col:
+                        if voice_type != "Дауыссыз":
+                            voice_range = st.selectbox("Дауыс диапазоны", list(VOICE_RANGES[voice_type]),
+                                                       key=f"voice_range_{voice_type}")
+                        else:
+                            voice_range = None
+                            st.caption("Ән аспаптармен орындалады.")
+                    timbres = st.multiselect("Дауыс тембрі", list(TIMBRES), max_selections=4,
+                                            key="voice_timbres", disabled=voice_type == "Дауыссыз",
+                                            placeholder="Қоңыр, мұрындық, жарқын... таңдаңыз")
+                    voice = VOICE_TYPES[voice_type]
+                    if voice_range is not None:
+                        voice += ", " + VOICE_RANGES[voice_type][voice_range]
+                        voice += ", " + ", ".join(TIMBRES[t] + " timbre" for t in timbres)
+                    voice_details = st.text_input("Дауысқа қосымша сипаттама", max_chars=500, key="voice_details",
+                                                  placeholder="Мысалы: қоңыр, барқыт тембр, жеңіл вибрато",
+                                                  help="Дауыс, орындау мәнері немесе аранжировкаға қатысты қалауыңызды жазыңыз.")
+            with st.expander("🎙 Вокал және орындау мәнері"):
+                delivery = st.multiselect("Орындау тәсілдері", DELIVERY, max_selections=4, key="delivery", format_func=kz, placeholder="Таңдаңыз")
+                backing = st.selectbox("Бэк-вокал", MIX_OPTIONS["Бэк-вокал"], key="backing", format_func=kz, placeholder="Таңдаңыз")
+                autotune = st.selectbox("Автотюн / дыбыс биіктігін түзету", AUTOTUNE, key="autotune", format_func=kz, placeholder="Таңдаңыз")
+            with st.expander("🎼 Аспаптар, ырғақ және аранжировка"):
+                blend = st.multiselect("Қосымша жанрлар / үйлесім", sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
+                                        max_selections=3, key="blend", format_func=kz, placeholder="Таңдаңыз")
+                instruments = st.multiselect("Аспаптар", INSTRUMENTS, max_selections=8, key="instruments", format_func=kz, placeholder="Таңдаңыз")
+                auto_tempo = st.checkbox("Темпті жанрға сай автоматты таңдау", value=True, key="auto_tempo")
+                tempo = st.slider("Темп / минутына соққы", 40, 240, 100, disabled=auto_tempo, key="tempo")
+                meter = st.selectbox("Өлшем / ырғақ", ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter", format_func=kz, placeholder="Таңдаңыз")
+                structure = st.selectbox("Ән құрылымы", STRUCTURES, key="structure", format_func=kz, placeholder="Таңдаңыз")
+                dynamics = st.selectbox("Динамика", MIX_OPTIONS["Динамика"], key="dynamics", format_func=kz, placeholder="Таңдаңыз")
+            with st.expander("🎛 Студия, эффектілер және микс"):
+                fx_left, fx_right = st.columns(2)
+                with fx_left:
+                    production = st.selectbox("Жазба / дыбыс өңдеу", PRODUCTION, key="production", format_func=kz, placeholder="Таңдаңыз")
+                    reverb = st.selectbox("Реверберация / кеңістік", REVERB, key="reverb", format_func=kz, placeholder="Таңдаңыз")
+                    delay = st.selectbox("Кідіріс / жаңғырық", DELAY, key="delay", format_func=kz, placeholder="Таңдаңыз")
+                with fx_right:
+                    compression = st.selectbox("Компрессия", MIX_OPTIONS["Компрессия"], key="compression", format_func=kz, placeholder="Таңдаңыз")
+                    eq = st.selectbox("Эквалайзер / үн", MIX_OPTIONS["EQ / тон"], key="eq", format_func=kz, placeholder="Таңдаңыз")
+                    saturation = st.selectbox("Сатурация", MIX_OPTIONS["Сатурация"], key="saturation", format_func=kz, placeholder="Таңдаңыз")
+                stereo = st.selectbox("Стерео", MIX_OPTIONS["Стерео"], key="stereo", format_func=kz, placeholder="Таңдаңыз")
+                placement = st.selectbox("Вокалдың микстегі орны", MIX_OPTIONS["Вокалдың микстегі орны"], key="placement", format_func=kz, placeholder="Таңдаңыз")
+            with st.expander("✎ Еркін эксперимент және шектеулер"):
+                custom_notes = st.text_area("Өзіңіздің музыкалық бағытыңыз", max_chars=1000, height=100, key="custom_notes",
+                                            placeholder="Мысалы: домбыра + Лос-Анджелес трэбі, жұмсақ баритон, драмалық финал")
+                avoid = st.text_input("Қоспау керек элементтер", max_chars=300, key="avoid",
+                                      placeholder="Мысалы: айқай, ауыр дисторшн, ұзақ кіріспе")
+            output_language = custom_language.strip() or LANGUAGES[language]
+            translate = output_language == "English"
+            controls = {"family": family, "regional_style": regional, "blend_genres": blend,
+                        "output_language": output_language, "script": script, "delivery": delivery,
+                        "backing_vocals": backing, "autotune": autotune, "instruments": instruments,
+                        "tempo_bpm": "Auto" if auto_tempo else tempo, "meter": meter,
+                        "structure": structure, "dynamics": dynamics, "production": production,
+                        "reverb": reverb, "delay": delay, "compression": compression,
+                        "eq": eq, "saturation": saturation, "stereo": stereo,
+                        "vocal_placement": placement, "voice_type": voice_type, "voice_range": voice_range,
+                        "voice_timbres": timbres if voice_type != "Дауыссыз" else [], "custom_notes": custom_notes, "avoid": avoid}
+            with st.container(key="generate_action"):
+                submitted = st.button("✦ Suno промптын жасау", type="primary", use_container_width=True)
+            st.caption(f"Мәтін генерация кезінде Groq-қа жіберіледі · Стильдік промпт ≤ {MAX_STYLE_LENGTH} символ")
+        if submitted:
+            st.session_state.pop("suno_result", None)
+            if not source.strip():
+                st.warning("Алдымен өлең мәтінін немесе идеяңызды енгізіңіз.")
             else:
                 try:
-                    with st.spinner("Suno промпты дайындалып жатыр..."):
-                        st.session_state["suno_result"] = generate_prompt(
-                            api_key.strip(), source.strip(), genre, mood, voice, translate, voice_details.strip(), controls)
-                        st.session_state["result_selection"] = json.dumps(
-                            [source, genre, mood, voice, voice_details, controls], ensure_ascii=False, sort_keys=True)
-                except AuthenticationError:
-                    st.error("Groq API кілті жарамсыз. Secrets баптауларын тексеріңіз.")
-                except RateLimitError:
-                    st.error("Groq сұрау лимитіне жетті. Кейінірек қайталап көріңіз.")
-                except APIConnectionError:
-                    st.error("Groq-қа қосылу мүмкін болмады. Кейінірек қайталап көріңіз.")
-                except APIStatusError as error:
-                    st.error(groq_error_message(error))
-                except APIError:
-                    st.error("Groq SDK сұрауды өңдей алмады. Қосымшаны қайта іске қосып көріңіз.")
-                except ValueError as error:
-                    st.error(str(error))
-    if "suno_result" in st.session_state:
-        current_selection = json.dumps([source, genre, mood, voice, voice_details, controls], ensure_ascii=False, sort_keys=True)
-        if st.session_state.get("result_selection") != current_selection:
-            st.info("Баптаулар өзгерді. Төменде алдыңғы нәтиже көрсетілген; жаңасын алу үшін «Промпт жасау» басыңыз.")
-        result = st.session_state["suno_result"]
-        st.markdown('<div class="studio-results-label">✦ SUNO ПРОМПТЫ ДАЙЫН</div>', unsafe_allow_html=True)
-        style_col, lyrics_col = st.columns([1, 1.45], gap="large")
-        with style_col:
-            with st.container(key="style_result"):
-                st.markdown('<div class="studio-heading"><span aria-hidden="true">◈</span> Стильдік промпт</div>',
-                            unsafe_allow_html=True)
-                st.caption(f'Suno → музыка стилі · {len(result["style_prompt"])} / {MAX_STYLE_LENGTH} символ')
-                st.code(result["style_prompt"], language=None, wrap_lines=True)
-                st.caption("Аспаптар, эмоция және ритм — бір промптта.")
-        with lyrics_col:
-            with st.container(key="lyrics_result"):
-                st.markdown('<div class="studio-heading"><span aria-hidden="true">≡</span> Құрылымды ән мәтіні</div>',
-                            unsafe_allow_html=True)
-                st.caption("Suno → ән мәтіні · Көшіру белгішесін басыңыз")
-                st.code(result["structure_lyrics"], language=None, wrap_lines=True)
+                    api_key = st.secrets["GROQ_API_KEY"]
+                except (KeyError, FileNotFoundError):
+                    api_key = None
+                if not isinstance(api_key, str) or not api_key.strip():
+                    st.error('GROQ_API_KEY табылмады. Оны Streamlit Secrets баптауларына қосыңыз.')
+                else:
+                    try:
+                        with st.spinner("Suno промпты дайындалып жатыр..."):
+                            st.session_state["suno_result"] = generate_prompt(
+                                api_key.strip(), source.strip(), genre, mood, voice, translate, voice_details.strip(), controls)
+                            st.session_state["result_selection"] = json.dumps(
+                                [source, genre, mood, voice, voice_details, controls], ensure_ascii=False, sort_keys=True)
+                    except AuthenticationError:
+                        st.error("Groq API кілті жарамсыз. Secrets баптауларын тексеріңіз.")
+                    except RateLimitError:
+                        st.error("Groq сұрау лимитіне жетті. Кейінірек қайталап көріңіз.")
+                    except APIConnectionError:
+                        st.error("Groq-қа қосылу мүмкін болмады. Кейінірек қайталап көріңіз.")
+                    except APIStatusError as error:
+                        st.error(groq_error_message(error))
+                    except APIError:
+                        st.error("Groq SDK сұрауды өңдей алмады. Қосымшаны қайта іске қосып көріңіз.")
+                    except ValueError as error:
+                        st.error(str(error))
+        if "suno_result" in st.session_state:
+            current_selection = json.dumps([source, genre, mood, voice, voice_details, controls], ensure_ascii=False, sort_keys=True)
+            if st.session_state.get("result_selection") != current_selection:
+                st.info("Баптаулар өзгерді. Төменде алдыңғы нәтиже көрсетілген; жаңасын алу үшін «Промпт жасау» басыңыз.")
+            result = st.session_state["suno_result"]
+            st.markdown('<div class="studio-results-label">✦ SUNO ПРОМПТЫ ДАЙЫН</div>', unsafe_allow_html=True)
+            style_col, lyrics_col = st.columns([1, 1.45], gap="large")
+            with style_col:
+                with st.container(key="style_result"):
+                    st.markdown('<div class="studio-heading"><span aria-hidden="true">◈</span> Стильдік промпт</div>',
+                                unsafe_allow_html=True)
+                    st.caption(f'Suno → музыка стилі · {len(result["style_prompt"])} / {MAX_STYLE_LENGTH} символ')
+                    st.code(result["style_prompt"], language=None, wrap_lines=True)
+                    st.caption("Аспаптар, эмоция және ритм — бір промптта.")
+            with lyrics_col:
+                with st.container(key="lyrics_result"):
+                    st.markdown('<div class="studio-heading"><span aria-hidden="true">≡</span> Құрылымды ән мәтіні</div>',
+                                unsafe_allow_html=True)
+                    st.caption("Suno → ән мәтіні · Көшіру белгішесін басыңыз")
+                    st.code(result["structure_lyrics"], language=None, wrap_lines=True)
+    with downloader_tab:
+        render_downloader()
     st.markdown('<div class="studio-footer">ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН</div>', unsafe_allow_html=True)
 
 
