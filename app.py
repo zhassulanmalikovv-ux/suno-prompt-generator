@@ -429,9 +429,9 @@ def fetch_ai_chart() -> list:
         def handle_endtag(self, tag):
             if tag == "a" and self.href:
                 name = " ".join(" ".join(self.parts).split())
-                if name and self.href not in self.seen:
+                if name and any(char.isalpha() for char in name) and self.href not in self.seen:
                     self.seen.add(self.href)
-                    self.tracks.append({"id": self.href, "name": name, "artistName": "UPCHART", "genres": [], "url": "https://upchart.ai" + self.href})
+                    self.tracks.append({"id": self.href, "name": name, "artistName": "—", "genres": [], "url": "https://upchart.ai" + self.href})
                 self.href, self.parts = None, []
     with urlopen(Request("https://upchart.ai/en/charts/all/live", headers={"User-Agent": "Mozilla/5.0"}), timeout=25) as response:
         raw = response.read(4 * 1024 * 1024 + 1)
@@ -449,7 +449,7 @@ def render_charts() -> None:
     chart_source = st.selectbox("Чарт дереккөзі", ["ЖИ әндері — UPCHART", "Apple Music"], key="chart_source")
     st.caption("UPCHART: тыңдарман бағаларына негізделген ЖИ музыка чарты. Тізім ашық беттен алынады; толық рейтингті дереккөзде қараңыз." if chart_source.startswith("ЖИ") else "Apple Music ашық RSS · Top 50")
     st.link_button("ЖИ әндерінің толық чарты", "https://upchart.ai/en/charts/all/live")
-    country = st.selectbox("Чарт елі", ["АҚШ", "Ұлыбритания", "Қазақстан"], key="chart_country")
+    country = "АҚШ" if chart_source.startswith("ЖИ") else st.selectbox("Чарт елі", ["АҚШ", "Ұлыбритания", "Қазақстан"], key="chart_country")
     countries = {"АҚШ": "us", "Ұлыбритания": "gb", "Қазақстан": "kz"}
     if st.button("↻ Чартты көрсету", key="load_chart"):
         try:
