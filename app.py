@@ -407,17 +407,56 @@ def generate_chart_prompt(key: str, track: dict) -> dict:
     return validate_random_concept(choice.message.content)
 
 
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_ai_chart() -> list:
+    from html.parser import HTMLParser
+    class Songs(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.href = None
+            self.parts = []
+            self.tracks = []
+            self.seen = set()
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                href = dict(attrs).get("href", "")
+                if href.startswith("/en/song/"):
+                    self.href, self.parts = href, []
+        def handle_data(self, data):
+            if self.href:
+                self.parts.append(data)
+        def handle_endtag(self, tag):
+            if tag == "a" and self.href:
+                name = " ".join(" ".join(self.parts).split())
+                if name and self.href not in self.seen:
+                    self.seen.add(self.href)
+                    self.tracks.append({"id": self.href, "name": name, "artistName": "UPCHART", "genres": [], "url": "https://upchart.ai" + self.href})
+                self.href, self.parts = None, []
+    with urlopen(Request("https://upchart.ai/en/charts/all/live", headers={"User-Agent": "Mozilla/5.0"}), timeout=25) as response:
+        raw = response.read(4 * 1024 * 1024 + 1)
+    if len(raw) > 4 * 1024 * 1024:
+        raise ValueError("Жауап тым үлкен.")
+    parser = Songs()
+    parser.feed(raw.decode("utf-8", errors="replace"))
+    if not parser.tracks:
+        raise ValueError("Чарт құрылымы өзгерген.")
+    return parser.tracks[:20]
+
+
 def render_charts() -> None:
-    st.subheader("↗ Музыкалық чарттар")
-    st.caption("Apple Music ашық RSS · Top 50 · дерек 1 сағатқа кэштеледі.")
+    st.subheader("↗ ЖИ музыкасының чарттары")
+    chart_source = st.selectbox("Чарт дереккөзі", ["ЖИ әндері — UPCHART", "Apple Music"], key="chart_source")
+    st.caption("UPCHART: тыңдарман бағаларына негізделген ЖИ музыка чарты. Тізім ашық беттен алынады; толық рейтингті дереккөзде қараңыз." if chart_source.startswith("ЖИ") else "Apple Music ашық RSS · Top 50")
+    st.link_button("ЖИ әндерінің толық чарты", "https://upchart.ai/en/charts/all/live")
     country = st.selectbox("Чарт елі", ["АҚШ", "Ұлыбритания", "Қазақстан"], key="chart_country")
     countries = {"АҚШ": "us", "Ұлыбритания": "gb", "Қазақстан": "kz"}
     if st.button("↻ Чартты көрсету", key="load_chart"):
         try:
             with st.spinner("Чарт жүктеліп жатыр..."):
-                tracks = fetch_chart(countries[country])
+                tracks = fetch_ai_chart() if chart_source.startswith("ЖИ") else fetch_chart(countries[country])
             st.session_state["chart_tracks"] = tracks
-            st.session_state["chart_loaded_country"] = country
+            st.session_state["chart_loaded_country"] = chart_source if chart_source.startswith("ЖИ") else country
             st.session_state.pop("chart_concept", None)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError):
             st.error("Чартты алу мүмкін болмады. Басқа елді таңдаңыз немесе кейінірек қайталаңыз.")
@@ -425,14 +464,14 @@ def render_charts() -> None:
     if not tracks:
         return
     st.caption("Көрсетілген чарт: " + st.session_state["chart_loaded_country"])
-    st.dataframe([{"№": i + 1, "Ән": t.get("name", ""), "Орындаушы": t.get("artistName", "")} for i, t in enumerate(tracks)], hide_index=True, use_container_width=True)
+    st.dataframe([{"Тізім": i + 1, "Ән": t.get("name", ""), "Орындаушы": t.get("artistName", "")} for i, t in enumerate(tracks)], hide_index=True, use_container_width=True)
     selection = st.selectbox("Промптқа арналған ән", list(range(len(tracks))),
                              format_func=lambda i: f'{i+1}. {tracks[i].get("artistName", "")} — {tracks[i].get("name", "")}',
                              key="chart_selection")
     track = tracks[selection]
     url = track.get("url", "")
-    if urlparse(url).scheme == "https" and urlparse(url).hostname == "music.apple.com":
-        st.link_button("Apple Music-та ашу", url)
+    if urlparse(url).scheme == "https" and urlparse(url).hostname in {"music.apple.com", "upchart.ai"}:
+        st.link_button("Әнді дереккөзде тыңдау", url)
     st.info("Промпт ән атауы мен жанр метадеректеріне сүйенеді. Бұл аудионы талдау немесе әннің дәл көшірмесі емес.")
     if st.button("✦ Осы бағытта Suno промптын жасау", key="chart_generate"):
         try:
