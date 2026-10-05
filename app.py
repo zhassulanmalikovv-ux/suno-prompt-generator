@@ -94,6 +94,31 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 [data-testid="stCode"] [data-testid="stElementToolbarButton"]{visibility:visible!important}
 .studio-footer{font-size:.7rem;color:var(--muted);border-top:1px solid var(--line);padding-top:1rem;margin-top:2rem;text-align:center}
 .studio-results-label{margin:1.6rem 0 .8rem;color:var(--ink);font-size:.8rem}
+[data-testid="stTabs"] [role="tablist"] {
+ display:flex;flex-wrap:wrap;gap:12px;height:auto!important;overflow:visible!important;
+ padding:4px 4px 14px;background:transparent;border-bottom:0!important;
+}
+[data-testid="stTabs"] [role="tab"] {
+ flex:1 1 180px;min-height:52px;height:auto!important;white-space:normal!important;
+ padding:12px 18px!important;background:var(--panel)!important;color:var(--ink)!important;
+ border:1px solid var(--line)!important;border-radius:10px!important;
+ box-shadow:3px 3px 0 var(--shadow);transition:background .15s ease,transform .15s ease;
+}
+[data-testid="stTabs"] [role="tab"] p {color:inherit!important;font-weight:700;line-height:1.4;}
+[data-testid="stTabs"] [role="tab"]:hover {background:var(--paper)!important;transform:translateY(-2px);}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+ background:var(--mint)!important;color:#182b2b!important;border:2px solid var(--line)!important;
+ box-shadow:3px 3px 0 var(--shadow);
+}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+[data-testid="stTabs"] [data-baseweb="tab-border"],
+[data-testid="stTabs"] [role="tablist"]::before,
+[data-testid="stTabs"] [role="tablist"]::after {display:none!important;}
+@media(max-width:768px){
+ [data-testid="stTabs"] [role="tablist"]{gap:10px;}
+ [data-testid="stTabs"] [role="tab"]{flex:1 1 calc(50% - 10px);min-width:0;padding:10px 8px!important;}
+}
+@media(prefers-reduced-motion:reduce){[data-testid="stTabs"] [role="tab"]{transition:none;}}
 .studio-hero-art{position:fixed;top:20vh;right:-30px;width:280px;height:280px;opacity:.12;pointer-events:none;perspective:800px}
 .studio-core{position:absolute;inset:80px;border:1px solid var(--line);background:var(--pink);border-radius:20px;transform:rotateX(25deg) rotateY(30deg) rotateZ(35deg);animation:retro-float 24s ease-in-out infinite}
 .studio-orbit{position:absolute;inset:30px;border:1px solid var(--line);border-radius:50%;transform:rotateX(65deg)}
@@ -660,4 +685,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
