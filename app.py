@@ -14,9 +14,10 @@ from catalog import (GENRE_GROUPS, GENRE_COUNT, REGIONAL_STYLES, DEFAULT_REGIONS
                      REVERB, DELAY, PRODUCTION, MIX_OPTIONS, STRUCTURES)
 
 from ui_kz import VOICE_TYPES, VOICE_RANGES, TIMBRES
-from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, visualizer_copy, language_changed, ui_selectbox, ui_multiselect, copy_output)
+from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, language_changed, ui_selectbox, ui_multiselect, copy_output)
 
 from presets import PRESETS, preset_settings
+from daily_prompts import daily_collection
 
 MODEL = "openai/gpt-oss-20b"
 MAX_STYLE_LENGTH = 900
@@ -329,67 +330,20 @@ def render_randomizer() -> None:
             copy_output(idea["lyrics"], language=None, wrap_lines=True)
 
 
-def visualizer_html(audio: bytes, mime: str, light: bool, style: str = "Bars") -> str:
-    import base64
-    data = base64.b64encode(audio).decode("ascii")
-    paper, ink, accent = ("#F7F1E8", "#25231F", "#408B88") if light else ("#242731", "#F2EADD", "#B9DDDA")
-    return visualizer_copy("""
-<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{margin:0;background:PAPER;color:INK;font:13px monospace;padding:14px;box-sizing:border-box}audio{width:100%}canvas{display:block;width:100%;height:160px;border:1px solid INK;margin-top:12px}p{line-height:1.5}</style>
-<audio id="audio" controls preload="metadata" src="data:MIME;base64,DATA"></audio>
-<canvas aria-label="Аудионың нақты жиілік спектрі" role="img"></canvas><p id="status" role="status">Play басыңыз — дыбыс спектрі бірге қозғалады.</p>
-<script>
-const audio=document.getElementById('audio'),canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.getElementById('status');
-const style='STYLE';
-let ac,analyser,source,bins,wave,frame=0;
-const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-function size(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(canvas.clientWidth*d);canvas.height=Math.round(160*d)}
-new ResizeObserver(()=>{size();draw()}).observe(canvas);
-function draw(){
- const w=canvas.width,h=canvas.height;ctx.fillStyle='PAPER';ctx.fillRect(0,0,w,h);if(!analyser)return;
- analyser.getByteFrequencyData(bins);ctx.fillStyle='ACCENT';ctx.strokeStyle='ACCENT';ctx.lineWidth=2*(canvas.width/canvas.clientWidth);
- const count=64,step=w/count;
- if(style==='Waveform'){analyser.getByteTimeDomainData(wave);ctx.beginPath();for(let i=0;i<wave.length;i++){const px=i*w/(wave.length-1),py=wave[i]/255*h;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke();return}
- if(style==='Circular'){const radius=h*.23,cx=w/2,cy=h/2;ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();for(let i=0;i<count;i++){const a=i/count*Math.PI*2,v=bins[i]/255,len=v*h*.2;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*radius,cy+Math.sin(a)*radius);ctx.lineTo(cx+Math.cos(a)*(radius+len),cy+Math.sin(a)*(radius+len));ctx.stroke()}return}
- if(style==='Galaxy'){const energy=bins.reduce((a,b)=>a+b,0)/(bins.length*255),t=audio.currentTime*.2;for(let i=0;i<160;i++){const a=i*2.399+t,r=Math.sqrt(i/160)*h*.43*(.7+energy*.3),px=w/2+Math.cos(a)*r*1.7,py=h/2+Math.sin(a)*r;ctx.globalAlpha=.3+bins[i%bins.length]/255*.7;ctx.beginPath();ctx.arc(px,py,1+bins[i%bins.length]/255*3,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;return}
- for(let i=0;i<count;i++){const v=bins[Math.floor(i*bins.length/count)]/255,height=v*h*(style==='Mirrored'?.45:.9);ctx.fillRect(i*step,style==='Mirrored'?h/2-height:h-height,Math.max(1,step-2),Math.max(1,style==='Mirrored'?height*2:height))}
-}
-function tick(){frame=0;draw();if(!audio.paused&&!document.hidden&&!reduced.matches)frame=requestAnimationFrame(tick)}
-audio.addEventListener('play',async()=>{try{if(!ac){ac=new AudioContext();analyser=ac.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.8;source=ac.createMediaElementSource(audio);source.connect(analyser);analyser.connect(ac.destination);bins=new Uint8Array(analyser.frequencyBinCount);wave=new Uint8Array(analyser.fftSize)}await ac.resume();status.textContent=reduced.matches?'Аудио ойнап жатыр. Қозғалысты азайту режимі қосулы.':'Нақты дыбыс спектрі · MP3 / WAV';if(!frame)tick()}catch(e){status.textContent='Бұл браузерде спектр қосылмады. Стандартты ойнатқышты пайдаланыңыз.'}});
-function stop(){cancelAnimationFrame(frame);frame=0;draw()}
-audio.addEventListener('pause',stop);audio.addEventListener('ended',stop);
-audio.addEventListener('error',()=>{status.textContent='Аудио форматын браузер ойната алмады.'});
-document.addEventListener('visibilitychange',()=>{stop();if(!document.hidden&&!audio.paused)tick()});
-reduced.addEventListener('change',()=>{stop();if(!audio.paused)tick()});
-window.addEventListener('pagehide',()=>{stop();if(ac)ac.close()});
-</script></html>
-""".replace("PAPER", paper).replace("INK", ink).replace("ACCENT", accent).replace("MIME", mime).replace("STYLE", style).replace("DATA", data))
-
-
-def render_audio_player(light: bool) -> None:
-    import streamlit.components.v1 as components
-    st.subheader(t("♫ Audio Player & Visualizer"))
-    st.caption(t("Компьютерден MP3 немесе WAV файлын жүктеңіз."))
-    audio = None
-    mime = "audio/mpeg"
-    st.caption(t("Файлды осы жерге сүйреңіз") + " · " + t("Әр файлға 20 МБ дейін · MP3, WAV"))
-    upload = st.file_uploader(t("MP3 немесе WAV"), type=["mp3", "wav"], key="player_upload")
-    if upload is not None:
-        if upload.size > 20 * 1024 * 1024:
-            st.error(t("Визуализатор үшін файл 20 МБ-тан аспауы керек."))
-            return
-        audio = upload.getvalue()
-        mime = "audio/wav" if upload.name.lower().endswith(".wav") else "audio/mpeg"
-    if audio:
-        st.markdown(t("**Стандартты ойнатқыш**"))
-        st.audio(audio, format=mime)
-        st.markdown(t("**Спектрмен ойнату**"))
-        st.caption(t("Төмендегі Play батырмасы аудио мен визуализаторды бірге іске қосады. Екі ойнатқышты қатар қоспаңыз."))
-        styles = {"Бағандар": "Bars", "Айналы спектр": "Mirrored", "Шеңбер спектрі": "Circular", "Дыбыс толқыны": "Waveform", "Galaxy — бөлшектер": "Galaxy"}
-        chosen = ui_selectbox(t("Визуализатор стилі"), list(styles), key="visualizer_style", format_func=kz)
-        st.caption(t("Стильді ауыстырғанда ойнатқыш қайта жүктеледі."))
-        components.html(visualizer_html(audio, mime, light, styles[chosen]), height=290, scrolling=False)
-
+@st.fragment(run_every="60s")
+def render_daily_prompts() -> None:
+    day, prompts = daily_collection()
+    st.subheader("✦ Күннің үздік промпттары")
+    st.caption(f"{day:%d.%m.%Y} · Күн сайын 00:00-де жаңарады · Қазақстан уақыты (UTC+5)")
+    st.caption("Арнайы құрастырылған 8 музыкалық бағыт. Бұл — редакциялық шабыт жинағы, тыңдалым рейтингі емес. Ашық беттегі жинақ минут сайын жаңаруы тексеріледі.")
+    for index in range(0, len(prompts), 2):
+        columns = st.columns(2)
+        for column, item in zip(columns, prompts[index:index + 2]):
+            with column:
+                with st.container(border=True):
+                    st.subheader(item["title"])
+                    st.caption(f"Suno → Style of Music · {len(item['style_prompt'])} / 900 символ")
+                    copy_output(item["style_prompt"], language="style")
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -539,7 +493,7 @@ def main() -> None:
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p></div><div class="studio-hero-art" aria-hidden="true"><div class="studio-orbit"></div><div class="studio-orbit two"></div><div class="studio-orbit three"></div><div class="studio-core"></div><div class="studio-art-label">IDEA → SOUND</div></div></div>
     """), unsafe_allow_html=True)
     st.caption(tf('{0} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор', GENRE_COUNT))
-    studio_tab, random_tab, player_tab, charts_tab = st.tabs([t(x) for x in ["♫ Промпт студиясы", "🎲 Suno Randomizer", "♫ Audio Player & Visualizer", "↗ Чарттар"]])
+    studio_tab, random_tab, daily_tab, charts_tab = st.tabs([t(x) for x in ["♫ Промпт студиясы", "🎲 Suno Randomizer", "✦ Күннің промпттары", "↗ Чарттар"]])
     with studio_tab:
         with st.container(key="preset_library"):
             st.markdown(t('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>'), unsafe_allow_html=True)
@@ -697,8 +651,8 @@ def main() -> None:
                     copy_output(normalize_lyrics(result["structure_lyrics"]), language=None, wrap_lines=True)
     with random_tab:
         render_randomizer()
-    with player_tab:
-        render_audio_player(light)
+    with daily_tab:
+        render_daily_prompts()
     with charts_tab:
         render_charts()
     st.markdown(t('<div class="studio-footer">ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН</div>'), unsafe_allow_html=True)
