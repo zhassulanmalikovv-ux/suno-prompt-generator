@@ -338,7 +338,7 @@ def generate_random_concept(api_key: str) -> dict:
     }
     with Groq(api_key=api_key, timeout=60.0, max_retries=1) as client:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", temperature=1.1, max_completion_tokens=2000,
+            model=MODEL, temperature=1.1, max_completion_tokens=4000,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": 'Create an unexpected, coherent, original musical concept. Return only JSON with four nonempty strings: title (Kazakh), concept (2-3 Kazakh sentences), style_prompt (English, one line, at most 900 characters, precise genres, instruments, tempo, vocal and production direction), lyrics (4-8 original Kazakh lines with [Verse] and [Chorus] tags). Use surprising combinations, not stock pop. Do not copy existing lyrics or imitate a specific artist.'},
