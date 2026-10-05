@@ -13,7 +13,7 @@ from catalog import (GENRE_GROUPS, GENRE_COUNT, REGIONAL_STYLES, DEFAULT_REGIONS
                      REVERB, DELAY, PRODUCTION, MIX_OPTIONS, STRUCTURES)
 
 from ui_kz import VOICE_TYPES, VOICE_RANGES, TIMBRES
-from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, visualizer_copy, language_changed)
+from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, visualizer_copy, language_changed, ui_selectbox, ui_multiselect)
 
 from presets import PRESETS, preset_settings
 
@@ -386,7 +386,7 @@ def render_audio_player(light: bool) -> None:
         st.markdown(t("**Спектрмен ойнату**"))
         st.caption(t("Төмендегі Play батырмасы аудио мен визуализаторды бірге іске қосады. Екі ойнатқышты қатар қоспаңыз."))
         styles = {"Бағандар": "Bars", "Айналы спектр": "Mirrored", "Шеңбер спектрі": "Circular", "Дыбыс толқыны": "Waveform", "Galaxy — бөлшектер": "Galaxy"}
-        chosen = st.selectbox(t("Визуализатор стилі"), list(styles), key="visualizer_style", format_func=kz)
+        chosen = ui_selectbox(t("Визуализатор стилі"), list(styles), key="visualizer_style", format_func=kz)
         st.caption(t("Стильді ауыстырғанда ойнатқыш қайта жүктеледі."))
         components.html(visualizer_html(audio, mime, light, styles[chosen]), height=290, scrolling=False)
 
@@ -462,10 +462,10 @@ def fetch_ai_chart() -> list:
 
 def render_charts() -> None:
     st.subheader(t("↗ ЖИ музыкасының чарттары"))
-    chart_source = st.selectbox(t("Чарт дереккөзі"), ["ЖИ әндері — UPCHART", "Apple Music"], key="chart_source", format_func=kz)
+    chart_source = ui_selectbox(t("Чарт дереккөзі"), ["ЖИ әндері — UPCHART", "Apple Music"], key="chart_source", format_func=kz)
     st.caption(t("UPCHART: тыңдарман бағаларына негізделген ЖИ музыка чарты. Тізім ашық беттен алынады; толық рейтингті дереккөзде қараңыз.") if chart_source.startswith("ЖИ") else t("Apple Music ашық RSS · Top 50"))
     st.link_button(t("ЖИ әндерінің толық чарты"), "https://upchart.ai/en/charts/all/live")
-    country = "АҚШ" if chart_source.startswith("ЖИ") else st.selectbox(t("Чарт елі"), ["АҚШ", "Ұлыбритания", "Қазақстан"], key="chart_country", format_func=kz)
+    country = "АҚШ" if chart_source.startswith("ЖИ") else ui_selectbox(t("Чарт елі"), ["АҚШ", "Ұлыбритания", "Қазақстан"], key="chart_country", format_func=kz)
     countries = {"АҚШ": "us", "Ұлыбритания": "gb", "Қазақстан": "kz"}
     if st.button(t("↻ Чартты көрсету"), key="load_chart"):
         try:
@@ -481,7 +481,7 @@ def render_charts() -> None:
         return
     st.caption(t("Көрсетілген чарт: ") + kz(st.session_state["chart_loaded_country"]))
     st.dataframe([{t("Тізім"): i + 1, t("Ән"): track.get("name", ""), t("Орындаушы"): track.get("artistName", "")} for i, track in enumerate(tracks)], hide_index=True, use_container_width=True)
-    selection = st.selectbox(t("Промптқа арналған ән"), list(range(len(tracks))),
+    selection = ui_selectbox(t("Промптқа арналған ән"), list(range(len(tracks))),
                              format_func=lambda i: f'{i+1}. {tracks[i].get("artistName", "")} — {tracks[i].get("name", "")}',
                              key="chart_selection")
     track = tracks[selection]
@@ -544,9 +544,9 @@ def main() -> None:
             st.markdown(t('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>'), unsafe_allow_html=True)
             st.subheader(t("✦ Орындаушыдан шабыт алыңыз"))
             st.caption(t("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз."))
-            preset_group = st.selectbox(t("Пресет бағыты"), ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group", format_func=kz)
+            preset_group = ui_selectbox(t("Пресет бағыты"), ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group", format_func=kz)
             choices = [name for name, preset in PRESETS.items() if preset_group == "Барлығы" or preset["category"] == preset_group]
-            st.selectbox(t("Әнші немесе топ пресеті"), sorted(choices), index=None,
+            ui_selectbox(t("Әнші немесе топ пресеті"), sorted(choices), index=None,
                          placeholder=tf('{0} орындаушы арасынан іздеңіз', len(choices)), key="artist_preset", format_func=kz,
                          on_change=apply_selected_preset)
             st.caption(t("Бұл — жалпы музыкалық сипаттарға негізделген бастапқы баптау. Дауыс көшірмесі емес; жаңа әуен мен мәтінге арналған."))
@@ -565,32 +565,32 @@ def main() -> None:
                     source = st.text_area(t("Өлең мәтіні немесе идеясы"), height=300, max_chars=12000, key="lyrics_source",
                                           placeholder=t("Түнгі қала, сағыныш пен үміт туралы ән...\n\nНемесе дайын өлеңіңізді осында қойыңыз."))
                     st.caption(t("✦ Мәтіннің бастапқы тілі аударма таңдалмаса сақталады."))
-                    language = st.selectbox(t("Өлеңнің тілі"), list(LANGUAGES), key="output_language", format_func=kz, placeholder=t("Таңдаңыз"))
+                    language = ui_selectbox(t("Өлеңнің тілі"), list(LANGUAGES), key="output_language", format_func=kz, placeholder=t("Таңдаңыз"))
                     custom_language = st.text_input(t("Басқа тіл немесе диалект (міндетті емес)"), max_chars=80, key="custom_language",
                                                     placeholder=t("Тізімде жоқ тілдің атауы"))
-                    script = st.selectbox(t("Жазу жүйесі"), ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script", format_func=kz, placeholder=t("Таңдаңыз"))
+                    script = ui_selectbox(t("Жазу жүйесі"), ["Тілге сай / Auto", "Cyrillic", "Latin", "Arabic"], key="script", format_func=kz, placeholder=t("Таңдаңыз"))
             with right:
                 with st.container(key="settings_card"):
                     st.markdown(t('<div id="settings-window" class="studio-heading"><span aria-hidden="true">♫</span> Әннің сипаты</div>'
                                 '<div class="studio-hint">Өзіңізге сай жанр, эмоция және дауыс таңдаңыз.</div>'),
                                 unsafe_allow_html=True)
-                    family = st.selectbox(t("Жанр санаты"), list(GENRE_GROUPS), key="genre_family", format_func=family_label, placeholder=t("Таңдаңыз"))
-                    genre = st.selectbox(t("Жанр / ішкі жанр"), GENRE_GROUPS[family], key=f"genre_{family}", format_func=kz, placeholder=t("Таңдаңыз"))
-                    regional = st.selectbox(t("Аймақтық стиль"), ["Auto / жанрға сай"] + REGIONAL_STYLES.get(family, DEFAULT_REGIONS),
+                    family = ui_selectbox(t("Жанр санаты"), list(GENRE_GROUPS), key="genre_family", format_func=family_label, placeholder=t("Таңдаңыз"))
+                    genre = ui_selectbox(t("Жанр / ішкі жанр"), GENRE_GROUPS[family], key=f"genre_{family}", format_func=kz, placeholder=t("Таңдаңыз"))
+                    regional = ui_selectbox(t("Аймақтық стиль"), ["Auto / жанрға сай"] + REGIONAL_STYLES.get(family, DEFAULT_REGIONS),
                                              key=f"region_{family}", format_func=kz, placeholder=t("Таңдаңыз"))
-                    mood = st.selectbox(t("Көңіл-күй"), ["Energetic", "Melancholic", "Uplifting", "Romantic",
+                    mood = ui_selectbox(t("Көңіл-күй"), ["Energetic", "Melancholic", "Uplifting", "Romantic",
                                                         "Dark", "Peaceful", "Epic", "Nostalgic"], key="mood", format_func=kz, placeholder=t("Таңдаңыз"))
                     voice_type_col, voice_range_col = st.columns(2)
                     with voice_type_col:
-                        voice_type = st.selectbox(t("Дауыс түрі"), list(VOICE_TYPES), key="voice_type", format_func=kz)
+                        voice_type = ui_selectbox(t("Дауыс түрі"), list(VOICE_TYPES), key="voice_type", format_func=kz)
                     with voice_range_col:
                         if voice_type != "Дауыссыз":
-                            voice_range = st.selectbox(t("Дауыс диапазоны"), list(VOICE_RANGES[voice_type]),
+                            voice_range = ui_selectbox(t("Дауыс диапазоны"), list(VOICE_RANGES[voice_type]),
                                                        key=f"voice_range_{voice_type}", format_func=kz)
                         else:
                             voice_range = None
                             st.caption(t("Ән аспаптармен орындалады."))
-                    timbres = st.multiselect(t("Дауыс тембрі"), list(TIMBRES), max_selections=4,
+                    timbres = ui_multiselect(t("Дауыс тембрі"), list(TIMBRES), max_selections=4,
                                             key="voice_timbres", format_func=kz, disabled=voice_type == "Дауыссыз",
                                             placeholder=t("Қоңыр, мұрындық, жарқын... таңдаңыз"))
                     voice = VOICE_TYPES[voice_type]
@@ -601,30 +601,30 @@ def main() -> None:
                                                   placeholder=t("Мысалы: қоңыр, барқыт тембр, жеңіл вибрато"),
                                                   help=t("Дауыс, орындау мәнері немесе аранжировкаға қатысты қалауыңызды жазыңыз."))
             with st.expander(t("🎙 Вокал және орындау мәнері")):
-                delivery = st.multiselect(t("Орындау тәсілдері"), DELIVERY, max_selections=4, key="delivery", format_func=kz, placeholder=t("Таңдаңыз"))
-                backing = st.selectbox(t("Бэк-вокал"), MIX_OPTIONS["Бэк-вокал"], key="backing", format_func=kz, placeholder=t("Таңдаңыз"))
-                autotune = st.selectbox(t("Автотюн / дыбыс биіктігін түзету"), AUTOTUNE, key="autotune", format_func=kz, placeholder=t("Таңдаңыз"))
+                delivery = ui_multiselect(t("Орындау тәсілдері"), DELIVERY, max_selections=4, key="delivery", format_func=kz, placeholder=t("Таңдаңыз"))
+                backing = ui_selectbox(t("Бэк-вокал"), MIX_OPTIONS["Бэк-вокал"], key="backing", format_func=kz, placeholder=t("Таңдаңыз"))
+                autotune = ui_selectbox(t("Автотюн / дыбыс биіктігін түзету"), AUTOTUNE, key="autotune", format_func=kz, placeholder=t("Таңдаңыз"))
             with st.expander(t("🎼 Аспаптар, ырғақ және аранжировка")):
-                blend = st.multiselect(t("Қосымша жанрлар / үйлесім"), sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
+                blend = ui_multiselect(t("Қосымша жанрлар / үйлесім"), sorted({g for gs in GENRE_GROUPS.values() for g in gs}),
                                         max_selections=3, key="blend", format_func=kz, placeholder=t("Таңдаңыз"))
-                instruments = st.multiselect(t("Аспаптар"), INSTRUMENTS, max_selections=8, key="instruments", format_func=kz, placeholder=t("Таңдаңыз"))
+                instruments = ui_multiselect(t("Аспаптар"), INSTRUMENTS, max_selections=8, key="instruments", format_func=kz, placeholder=t("Таңдаңыз"))
                 auto_tempo = st.checkbox(t("Темпті жанрға сай автоматты таңдау"), value=True, key="auto_tempo")
                 tempo = st.slider(t("Темп / минутына соққы"), 40, 240, 100, disabled=auto_tempo, key="tempo")
-                meter = st.selectbox(t("Өлшем / ырғақ"), ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter", format_func=kz, placeholder=t("Таңдаңыз"))
-                structure = st.selectbox(t("Ән құрылымы"), STRUCTURES, key="structure", format_func=kz, placeholder=t("Таңдаңыз"))
-                dynamics = st.selectbox(t("Динамика"), MIX_OPTIONS["Динамика"], key="dynamics", format_func=kz, placeholder=t("Таңдаңыз"))
+                meter = ui_selectbox(t("Өлшем / ырғақ"), ["Auto", "4/4 straight", "4/4 swung", "3/4 waltz", "6/8 flowing", "5/4", "7/8", "Half-time", "Double-time", "Shuffle", "Syncopated", "Polyrhythmic"], key="meter", format_func=kz, placeholder=t("Таңдаңыз"))
+                structure = ui_selectbox(t("Ән құрылымы"), STRUCTURES, key="structure", format_func=kz, placeholder=t("Таңдаңыз"))
+                dynamics = ui_selectbox(t("Динамика"), MIX_OPTIONS["Динамика"], key="dynamics", format_func=kz, placeholder=t("Таңдаңыз"))
             with st.expander(t("🎛 Студия, эффектілер және микс")):
                 fx_left, fx_right = st.columns(2)
                 with fx_left:
-                    production = st.selectbox(t("Жазба / дыбыс өңдеу"), PRODUCTION, key="production", format_func=kz, placeholder=t("Таңдаңыз"))
-                    reverb = st.selectbox(t("Реверберация / кеңістік"), REVERB, key="reverb", format_func=kz, placeholder=t("Таңдаңыз"))
-                    delay = st.selectbox(t("Кідіріс / жаңғырық"), DELAY, key="delay", format_func=kz, placeholder=t("Таңдаңыз"))
+                    production = ui_selectbox(t("Жазба / дыбыс өңдеу"), PRODUCTION, key="production", format_func=kz, placeholder=t("Таңдаңыз"))
+                    reverb = ui_selectbox(t("Реверберация / кеңістік"), REVERB, key="reverb", format_func=kz, placeholder=t("Таңдаңыз"))
+                    delay = ui_selectbox(t("Кідіріс / жаңғырық"), DELAY, key="delay", format_func=kz, placeholder=t("Таңдаңыз"))
                 with fx_right:
-                    compression = st.selectbox(t("Компрессия"), MIX_OPTIONS["Компрессия"], key="compression", format_func=kz, placeholder=t("Таңдаңыз"))
-                    eq = st.selectbox(t("Эквалайзер / үн"), MIX_OPTIONS["EQ / тон"], key="eq", format_func=kz, placeholder=t("Таңдаңыз"))
-                    saturation = st.selectbox(t("Сатурация"), MIX_OPTIONS["Сатурация"], key="saturation", format_func=kz, placeholder=t("Таңдаңыз"))
-                stereo = st.selectbox(t("Стерео"), MIX_OPTIONS["Стерео"], key="stereo", format_func=kz, placeholder=t("Таңдаңыз"))
-                placement = st.selectbox(t("Вокалдың микстегі орны"), MIX_OPTIONS["Вокалдың микстегі орны"], key="placement", format_func=kz, placeholder=t("Таңдаңыз"))
+                    compression = ui_selectbox(t("Компрессия"), MIX_OPTIONS["Компрессия"], key="compression", format_func=kz, placeholder=t("Таңдаңыз"))
+                    eq = ui_selectbox(t("Эквалайзер / үн"), MIX_OPTIONS["EQ / тон"], key="eq", format_func=kz, placeholder=t("Таңдаңыз"))
+                    saturation = ui_selectbox(t("Сатурация"), MIX_OPTIONS["Сатурация"], key="saturation", format_func=kz, placeholder=t("Таңдаңыз"))
+                stereo = ui_selectbox(t("Стерео"), MIX_OPTIONS["Стерео"], key="stereo", format_func=kz, placeholder=t("Таңдаңыз"))
+                placement = ui_selectbox(t("Вокалдың микстегі орны"), MIX_OPTIONS["Вокалдың микстегі орны"], key="placement", format_func=kz, placeholder=t("Таңдаңыз"))
             with st.expander(t("✎ Еркін эксперимент және шектеулер")):
                 custom_notes = st.text_area(t("Өзіңіздің музыкалық бағытыңыз"), max_chars=1000, height=100, key="custom_notes",
                                             placeholder=t("Мысалы: домбыра + Лос-Анджелес трэбі, жұмсақ баритон, драмалық финал"))
