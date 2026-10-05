@@ -260,13 +260,13 @@ def parse_suno_song_id(link: str) -> str:
     return str(UUID(match.group(1)))
 
 
-@st.cache_data(ttl=900, max_entries=12, show_spinner=False)
-def fetch_suno_mp3(song_id: str) -> bytes:
-    """Download bounded audio from the fixed public CDN, never a supplied host."""
-    canonical = str(UUID(song_id))
-    request = Request(f"https://cdn1.suno.ai/{canonical}.mp3",
-                      headers={"User-Agent": "SunoPromptStudio/1.0"})
-    with urlopen(request, timeout=25) as response:
+def download_checked_mp3(url: str) -> bytes:
+    """Fetch audio only from Suno-owned HTTPS CDN hosts."""
+    parsed = urlparse(url)
+    if (parsed.scheme != "https" or parsed.hostname not in {"cdn1.suno.ai", "cdn2.suno.ai"}
+            or parsed.username or parsed.password or parsed.port not in (None, 443)):
+        raise ValueError("Аудио адресі Suno CDN-ге тиесілі емес.")
+    with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=25) as response:
         length = response.headers.get("Content-Length")
         if length and int(length) > MAX_MP3_BYTES:
             raise ValueError("Файл тым үлкен: ең көбі 40 МБ.")
@@ -277,6 +277,43 @@ def fetch_suno_mp3(song_id: str) -> bytes:
                          (len(audio) >= 2 and audio[0] == 255 and audio[1] & 224 == 224)):
         raise ValueError("CDN жарамды MP3 файлын қайтармады.")
     return audio
+
+
+@st.cache_data(ttl=900, max_entries=12, show_spinner=False)
+def fetch_suno_mp3(song_id: str) -> bytes:
+    canonical = str(UUID(song_id))
+    candidates = [f"https://cdn1.suno.ai/{canonical}.mp3",
+                  f"https://cdn2.suno.ai/{canonical}.mp3"]
+    last_error = None
+    for url in candidates:
+        try:
+            return download_checked_mp3(url)
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
+            last_error = error
+    # Public song metadata can point to a differently named CDN file.
+    try:
+        import html
+        page_url = f"https://suno.com/song/{canonical}"
+        with urlopen(Request(page_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=20) as response:
+            raw = response.read(3 * 1024 * 1024 + 1)
+        if len(raw) <= 3 * 1024 * 1024:
+            page = html.unescape(raw.decode("utf-8", errors="replace")).replace("\\/", "/").replace("\\u0026", "&")
+            matches = re.findall(r'https://cdn[12]\.suno\.ai/[^\s"<>\\]+\.mp3(?:\?[^\s"<>\\]*)?', page)
+            for url in dict.fromkeys(matches):
+                # Only accept a public URL explicitly tied to this song.
+                if canonical not in url:
+                    continue
+                if url in candidates:
+                    continue
+                try:
+                    return download_checked_mp3(url)
+                except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
+                    last_error = error
+    except (HTTPError, URLError, TimeoutError, OSError):
+        pass
+    if last_error:
+        raise last_error
+    raise ValueError("Бұл әннің ашық MP3 файлы табылмады.")
 
 
 def render_downloader() -> None:
@@ -297,7 +334,7 @@ def render_downloader() -> None:
             st.error(str(error))
         except HTTPError as error:
             if error.code in (403, 404):
-                st.error("Әннің MP3 файлы ашық CDN-де қолжетімсіз. Сілтемені және әннің қолжетімділігін тексеріңіз.")
+                st.error("Әннің ашық MP3 файлы cdn1/cdn2 серверлерінен және ән бетінен табылмады. Ән жойылған, жабық немесе әлі өңделіп жатқан болуы мүмкін. Suno-да ашып тексеріңіз.")
             else:
                 st.error(f"CDN файлды қайтармады (HTTP {error.code}). Кейінірек қайталаңыз.")
         except (URLError, TimeoutError, OSError):
