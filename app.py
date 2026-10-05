@@ -313,6 +313,135 @@ def render_downloader() -> None:
         st.caption(f'Ән ID: {song["id"]} · {len(song["audio"]) / (1024 * 1024):.1f} МБ')
 
 
+
+def validate_random_concept(content: str) -> dict:
+    result = json.loads(content)
+    if not isinstance(result, dict) or set(result) != {"title", "concept", "style_prompt", "lyrics"}:
+        raise ValueError("Идеяның форматы дұрыс емес. Қайта көріңіз.")
+    for key in result:
+        if not isinstance(result[key], str) or not result[key].strip():
+            raise ValueError("Идея толық емес. Қайта көріңіз.")
+        result[key] = result[key].strip()
+    result["style_prompt"] = " ".join(result["style_prompt"].split())
+    if len(result["style_prompt"]) > MAX_STYLE_LENGTH:
+        raise ValueError("Стильдік промпт 900 символдан асты. Қайта көріңіз.")
+    return result
+
+
+def generate_random_concept(api_key: str) -> dict:
+    import secrets
+    ingredients = {
+        "instruments": secrets.choice(["dombra and granular synths", "kobyz and disco bass", "acoustic guitar and modular techno", "piano and tape loops"]),
+        "world": secrets.choice(["a cyberpunk steppe railway", "a rainy lunar tea house", "a desert library of memories", "an underwater city at sunrise"]),
+        "contrast": secrets.choice(["intimate versus futuristic", "ancient versus playful", "melancholy versus danceable", "dreamlike versus percussive"]),
+        "nonce": secrets.token_hex(8),
+    }
+    with Groq(api_key=api_key, timeout=60.0, max_retries=1) as client:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile", temperature=1.1, max_completion_tokens=2000,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": 'Create an unexpected, coherent, original musical concept. Return only JSON with four nonempty strings: title (Kazakh), concept (2-3 Kazakh sentences), style_prompt (English, one line, at most 900 characters, precise genres, instruments, tempo, vocal and production direction), lyrics (4-8 original Kazakh lines with [Verse] and [Chorus] tags). Use surprising combinations, not stock pop. Do not copy existing lyrics or imitate a specific artist.'},
+                {"role": "user", "content": json.dumps(ingredients)},
+            ])
+    choice = response.choices[0]
+    if choice.finish_reason != "stop" or not choice.message.content:
+        raise ValueError("Идея толық аяқталмады. Қайта көріңіз.")
+    return validate_random_concept(choice.message.content)
+
+
+def render_randomizer() -> None:
+    st.subheader("🎲 Suno Randomizer — Идея генераторы")
+    st.caption("Күтпеген музыкалық әлем, дайын стильдік промпт және қысқаша өлең.")
+    if st.button("🎲 Кездейсоқ идея генерациялау", key="randomize_idea"):
+        try:
+            key = st.secrets["GROQ_API_KEY"]
+            if not isinstance(key, str) or not key.strip():
+                raise KeyError("GROQ_API_KEY")
+            with st.spinner("Жаңа музыкалық әлем құрастырылып жатыр..."):
+                idea = generate_random_concept(key.strip())
+            st.session_state["random_concept"] = idea
+        except (KeyError, FileNotFoundError):
+            st.error("Groq кілті табылмады. Streamlit Secrets баптауларын тексеріңіз.")
+        except AuthenticationError:
+            st.error("Groq кілті жарамсыз.")
+        except RateLimitError:
+            st.error("Groq лимитіне жетті. Кейінірек қайталаңыз.")
+        except APIStatusError as error:
+            st.error(groq_error_message(error))
+        except (APIConnectionError, APIError):
+            st.error("Groq-қа қосылу мүмкін болмады. Қайта көріңіз.")
+        except (ValueError, TypeError):
+            st.error("Идея толық не дұрыс форматта алынбады. Қайта көріңіз.")
+    if "random_concept" in st.session_state:
+        idea = st.session_state["random_concept"]
+        with st.container(border=True):
+            st.subheader(idea["title"])
+            st.write(idea["concept"])
+            st.markdown("**Style Prompt**")
+            st.code(idea["style_prompt"], language=None, wrap_lines=True)
+            st.markdown("**Қысқаша өлең**")
+            st.code(idea["lyrics"], language=None, wrap_lines=True)
+
+
+def visualizer_html(audio: bytes, mime: str, light: bool) -> str:
+    import base64
+    data = base64.b64encode(audio).decode("ascii")
+    paper, ink, accent = ("#F7F1E8", "#25231F", "#408B88") if light else ("#242731", "#F2EADD", "#B9DDDA")
+    return """
+<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;background:PAPER;color:INK;font:13px monospace;padding:14px;box-sizing:border-box}audio{width:100%}canvas{display:block;width:100%;height:160px;border:1px solid INK;margin-top:12px}p{line-height:1.5}</style>
+<audio id="audio" controls preload="metadata" src="data:MIME;base64,DATA"></audio>
+<canvas aria-label="Аудионың нақты жиілік спектрі" role="img"></canvas><p id="status" role="status">Play басыңыз — дыбыс спектрі бірге қозғалады.</p>
+<script>
+const audio=document.getElementById('audio'),canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.getElementById('status');
+let ac,analyser,source,bins,frame=0;
+const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+function size(){const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(canvas.clientWidth*d);canvas.height=Math.round(160*d)}
+new ResizeObserver(()=>{size();draw()}).observe(canvas);
+function draw(){const w=canvas.width,h=canvas.height;ctx.fillStyle='PAPER';ctx.fillRect(0,0,w,h);if(!analyser)return;analyser.getByteFrequencyData(bins);const count=64,step=w/count;ctx.fillStyle='ACCENT';for(let i=0;i<count;i++){const v=bins[Math.floor(i*bins.length/count)]/255;ctx.fillRect(i*step,h-v*h*.9,Math.max(1,step-2),Math.max(1,v*h*.9))}}
+function tick(){frame=0;draw();if(!audio.paused&&!document.hidden&&!reduced.matches)frame=requestAnimationFrame(tick)}
+audio.addEventListener('play',async()=>{try{if(!ac){ac=new AudioContext();analyser=ac.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.8;source=ac.createMediaElementSource(audio);source.connect(analyser);analyser.connect(ac.destination);bins=new Uint8Array(analyser.frequencyBinCount)}await ac.resume();status.textContent=reduced.matches?'Аудио ойнап жатыр. Қозғалысты азайту режимі қосулы.':'Нақты дыбыс спектрі · MP3 / WAV';if(!frame)tick()}catch(e){status.textContent='Бұл браузерде спектр қосылмады. Стандартты ойнатқышты пайдаланыңыз.'}});
+function stop(){cancelAnimationFrame(frame);frame=0;draw()}
+audio.addEventListener('pause',stop);audio.addEventListener('ended',stop);
+audio.addEventListener('error',()=>{status.textContent='Аудио форматын браузер ойната алмады.'});
+document.addEventListener('visibilitychange',()=>{stop();if(!document.hidden&&!audio.paused)tick()});
+reduced.addEventListener('change',()=>{stop();if(!audio.paused)tick()});
+window.addEventListener('pagehide',()=>{stop();if(ac)ac.close()});
+</script></html>
+""".replace("PAPER", paper).replace("INK", ink).replace("ACCENT", accent).replace("MIME", mime).replace("DATA", data)
+
+
+def render_audio_player(light: bool) -> None:
+    import streamlit.components.v1 as components
+    st.subheader("♫ Audio Player & Visualizer")
+    st.caption("Компьютерден MP3/WAV жүктеңіз немесе Suno Downloader арқылы алынған әнді таңдаңыз.")
+    downloaded = st.session_state.get("downloaded_song")
+    options = ["Компьютерден файл"] + (["Suno Downloader әні"] if downloaded else [])
+    source = st.radio("Аудио көзі", options, horizontal=True, key="player_source")
+    audio = None
+    mime = "audio/mpeg"
+    if source == "Компьютерден файл":
+        upload = st.file_uploader("MP3 немесе WAV", type=["mp3", "wav"], key="player_upload")
+        if upload is not None:
+            if upload.size > 20 * 1024 * 1024:
+                st.error("Визуализатор үшін файл 20 МБ-тан аспауы керек.")
+                return
+            audio = upload.getvalue()
+            mime = "audio/wav" if upload.name.lower().endswith(".wav") else "audio/mpeg"
+    else:
+        audio = downloaded["audio"]
+        if len(audio) > 20 * 1024 * 1024:
+            st.error("Визуализатор үшін файл 20 МБ-тан аспауы керек. Downloader арқылы ойната аласыз.")
+            return
+    if audio:
+        st.markdown("**Стандартты ойнатқыш**")
+        st.audio(audio, format=mime)
+        st.markdown("**Спектрмен ойнату**")
+        st.caption("Төмендегі Play батырмасы аудио мен визуализаторды бірге іске қосады. Екі ойнатқышты қатар қоспаңыз.")
+        components.html(visualizer_html(audio, mime, light), height=290, scrolling=False)
+
+
 def main() -> None:
     st.set_page_config(page_title="Suno — ән промпты студиясы", page_icon="🎵", layout="wide")
     light = st.toggle("☀ Күн режимі", value=True, key="light_mode")
@@ -330,7 +459,7 @@ def main() -> None:
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p></div><div class="studio-hero-art" aria-hidden="true"><div class="studio-orbit"></div><div class="studio-orbit two"></div><div class="studio-orbit three"></div><div class="studio-core"></div><div class="studio-art-label">IDEA → SOUND</div></div></div>
     """, unsafe_allow_html=True)
     st.caption(f"{GENRE_COUNT} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор")
-    studio_tab, downloader_tab = st.tabs(["♫ Промпт студиясы", "↓ Suno Downloader"])
+    studio_tab, downloader_tab, random_tab, player_tab = st.tabs(["♫ Промпт студиясы", "↓ Suno Downloader", "🎲 Suno Randomizer", "♫ Audio Player & Visualizer"])
     with studio_tab:
         with st.container(key="preset_library"):
             st.markdown('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>', unsafe_allow_html=True)
@@ -488,6 +617,10 @@ def main() -> None:
                     st.code(result["structure_lyrics"], language=None, wrap_lines=True)
     with downloader_tab:
         render_downloader()
+    with random_tab:
+        render_randomizer()
+    with player_tab:
+        render_audio_player(light)
     st.markdown('<div class="studio-footer">ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН</div>', unsafe_allow_html=True)
 
 
