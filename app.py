@@ -13,7 +13,7 @@ from catalog import (GENRE_GROUPS, GENRE_COUNT, REGIONAL_STYLES, DEFAULT_REGIONS
                      REVERB, DELAY, PRODUCTION, MIX_OPTIONS, STRUCTURES)
 
 from ui_kz import VOICE_TYPES, VOICE_RANGES, TIMBRES
-from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, visualizer_copy, language_changed, ui_selectbox, ui_multiselect)
+from ui_i18n import (t, tf, label as kz, family_label, locale, LANGUAGE_NAMES, MODEL_LANGUAGES, studio_css, visualizer_copy, language_changed, ui_selectbox, ui_multiselect, copy_output)
 
 from presets import PRESETS, preset_settings
 
@@ -276,7 +276,6 @@ def generate_random_concept(api_key: str) -> dict:
         "instruments": secrets.choice(["dombra and granular synths", "kobyz and disco bass", "acoustic guitar and modular techno", "piano and tape loops"]),
         "world": secrets.choice(["a cyberpunk steppe railway", "a rainy lunar tea house", "a desert library of memories", "an underwater city at sunrise"]),
         "contrast": secrets.choice(["intimate versus futuristic", "ancient versus playful", "melancholy versus danceable", "dreamlike versus percussive"]),
-        "nonce": secrets.token_hex(8),
         "result_language": MODEL_LANGUAGES[locale()],
     }
     with Groq(api_key=api_key, timeout=60.0, max_retries=1) as client:
@@ -324,9 +323,9 @@ def render_randomizer() -> None:
             st.subheader(idea["title"])
             st.write(idea["concept"])
             st.markdown(t("**Style Prompt**"))
-            st.code(idea["style_prompt"], language=None, wrap_lines=True)
+            copy_output(idea["style_prompt"], language="style", wrap_lines=True)
             st.markdown(t("**Қысқаша өлең**"))
-            st.code(idea["lyrics"], language=None, wrap_lines=True)
+            copy_output(idea["lyrics"], language=None, wrap_lines=True)
 
 
 def visualizer_html(audio: bytes, mime: str, light: bool, style: str = "Bars") -> str:
@@ -511,8 +510,8 @@ def render_charts() -> None:
         with st.container(border=True):
             st.subheader(idea["title"])
             st.write(idea["concept"])
-            st.code(idea["style_prompt"], language=None, wrap_lines=True)
-            st.code(idea["lyrics"], language=None, wrap_lines=True)
+            copy_output(idea["style_prompt"], language="style", wrap_lines=True)
+            copy_output(idea["lyrics"], language=None, wrap_lines=True)
 
 
 def main() -> None:
@@ -686,14 +685,14 @@ def main() -> None:
                     st.markdown(t('<div class="studio-heading"><span aria-hidden="true">◈</span> Стильдік промпт</div>'),
                                 unsafe_allow_html=True)
                     st.caption(tf('Suno → музыка стилі · {0} / {1} символ', len(result["style_prompt"]), MAX_STYLE_LENGTH))
-                    st.code(result["style_prompt"], language=None, wrap_lines=True)
+                    copy_output(result["style_prompt"], language="style", wrap_lines=True)
                     st.caption(t("Аспаптар, эмоция және ритм — бір промптта."))
             with lyrics_col:
                 with st.container(key="lyrics_result"):
                     st.markdown(t('<div class="studio-heading"><span aria-hidden="true">≡</span> Құрылымды ән мәтіні</div>'),
                                 unsafe_allow_html=True)
                     st.caption(t("Suno → ән мәтіні · Көшіру белгішесін басыңыз"))
-                    st.code(normalize_lyrics(result["structure_lyrics"]), language=None, wrap_lines=True)
+                    copy_output(normalize_lyrics(result["structure_lyrics"]), language=None, wrap_lines=True)
     with random_tab:
         render_randomizer()
     with player_tab:
