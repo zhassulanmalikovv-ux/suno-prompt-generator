@@ -40,7 +40,7 @@ STUDIO_CSS = """
 :root {color-scheme:dark;--desk:#30303c;--panel:#242731;--paper:#191c23;--ink:#f2eadd;--muted:#c5bdaf;--line:#d0c3b4;--pink:#eab8b5;--mint:#b6ded6;--shadow:#111118}
 .stApp {background-color:var(--desk);background-image:radial-gradient(var(--line) .45px,transparent .45px);background-size:4px 4px;color:var(--ink);font-family:'Courier New','Segoe UI',monospace}
 [data-testid="stHeader"] {background:var(--desk)}
-.block-container {max-width:1180px;padding-top:2rem;padding-bottom:3rem}
+.block-container {max-width:1180px;padding-top:4rem;padding-bottom:3rem}
 h1,h2,h3,p,label,input,textarea,button {font-family:'Courier New','Segoe UI',monospace}
 .studio-topline {display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--panel);border:1px solid var(--line);box-shadow:3px 3px 0 var(--shadow);padding:.7rem 1rem}
 .studio-brand {font-weight:700;color:var(--ink);font-size:1rem;letter-spacing:-.04em}
@@ -100,7 +100,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .studio-art-label{display:none}
 @keyframes retro-float{0%,100%{transform:translateY(-15px) rotateX(25deg) rotateY(30deg) rotateZ(35deg)}50%{transform:translateY(15px) rotateX(45deg) rotateY(-25deg) rotateZ(55deg)}}
 @media(max-width:768px){
- .block-container{padding:3rem 1rem 2rem}
+ .block-container{padding:4rem 1rem 2rem}
  .studio-topline{flex-wrap:wrap;gap:.5rem}
  .studio-brand{font-size:.85rem}
  .retro-nav a{padding:.65rem .7rem;font-size:.7rem;flex:1}
@@ -520,7 +520,7 @@ def main() -> None:
         st.session_state["ui_language"] = requested if requested in LANGUAGE_NAMES else "kk"
     st.set_page_config(page_title=t("Suno — ән промпты студиясы"), page_icon="🎵", layout="wide")
     st.selectbox("Қазақша / English / Русский", list(LANGUAGE_NAMES),
-                 format_func=LANGUAGE_NAMES.get, key="ui_language", on_change=language_changed)
+                 format_func=LANGUAGE_NAMES.get, key="ui_language", on_change=language_changed, placeholder=t("Таңдаңыз"))
     st.caption(t("Интерфейс тілі ән мәтінінің тілін өзгертпейді."))
     light = st.toggle(t("☀ Күн режимі"), value=True, key="light_mode")
     st.markdown(studio_css(STUDIO_CSS), unsafe_allow_html=True)
