@@ -6930,6 +6930,36 @@ def label(value):
 def family_label(value):
     return t("genre_family_latin") if value == "Latin" else t(value)
 
+def ui_selectbox(label, options, *, key, index=0, on_change=None, **kwargs):
+    """Remount translated option labels while keeping canonical selections."""
+    options = list(options)
+    initial = None if index is None else options[index]
+    current = st.session_state.get(key, initial)
+    if current is not None and current not in options:
+        current = initial
+    widget_key = "_locale_" + locale() + "_" + key
+    st.session_state[widget_key] = current
+    def changed():
+        st.session_state[key] = st.session_state[widget_key]
+        if on_change:
+            on_change()
+    selected = st.selectbox(label, options, index=index, key=widget_key,
+                            on_change=changed, **kwargs)
+    st.session_state[key] = selected
+    return selected
+
+def ui_multiselect(label, options, *, key, **kwargs):
+    options = list(options)
+    widget_key = "_locale_" + locale() + "_" + key
+    current = st.session_state.get(key, kwargs.get("default", []))
+    st.session_state[widget_key] = [value for value in current if value in options]
+    def changed():
+        st.session_state[key] = st.session_state[widget_key]
+    selected = st.multiselect(label, options, key=widget_key,
+                              on_change=changed, **kwargs)
+    st.session_state[key] = selected
+    return selected
+
 def markup(source):
     # Only static application HTML is passed here.
     result = re.sub(r">([^<]+)<", lambda m: ">" + html.escape(t(m.group(1)), quote=False) + "<", source)
