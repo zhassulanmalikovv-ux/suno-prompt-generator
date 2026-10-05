@@ -451,9 +451,9 @@ COPY = {
     "ru": "Текст песни с разметкой"
   },
   "Suno → ән мәтіні · Көшіру белгішесін басыңыз": {
-    "kk": "Suno → ән мәтіні · Көшіру белгішесін басыңыз",
-    "en": "Suno → lyrics · Click the copy icon",
-    "ru": "Suno → текст песни · Нажмите значок копирования"
+    "kk": "Suno → ән мәтіні · «Көшіру» батырмасын басыңыз",
+    "en": "Suno → lyrics · Click Copy",
+    "ru": "Suno → текст песни · Нажмите «Копировать»"
   },
   "ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН": {
     "kk": "ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН",
@@ -6889,10 +6889,26 @@ COPY = {
     "kk": "Латын музыкасы",
     "en": "Latin music",
     "ru": "Латиноамериканская музыка"
+  },
+  "Көшіру": {
+    "kk": "Көшіру",
+    "en": "Copy",
+    "ru": "Копировать"
+  },
+  "Көшірілді": {
+    "kk": "Көшірілді",
+    "en": "Copied",
+    "ru": "Скопировано"
+  },
+  "Мәтінді таңдаңыз да, көшіріңіз.": {
+    "kk": "Мәтінді таңдаңыз да, көшіріңіз.",
+    "en": "Select the text and copy it.",
+    "ru": "Выделите текст и скопируйте его."
   }
 }
 
 import html
+import json
 import re
 import streamlit as st
 
@@ -6969,7 +6985,26 @@ def studio_css(source):
     for text in ("ДЫБЫС КІТАПХАНАСЫ", "ӨЛЕҢ / ИДЕЯ", "МУЗЫКАЛЫҚ БАПТАУЛАР", "STYLE PROMPT", "LYRICS"):
         source = source.replace("▣  " + text, "▣  " + t(text))
     browse = t("Файлды таңдау")
-    return source + '<style>[data-testid="stFileUploaderDropzoneInstructions"]{display:none}[data-testid="stFileUploaderDropzone"] button{font-size:0!important}[data-testid="stFileUploaderDropzone"] button::after{content:"' + browse + '";font:14px monospace}</style>'
+    return source + '<style>[data-testid="stFileUploaderDropzoneInstructions"]{display:none}[data-testid="stFileUploaderDropzone"] button{font-size:0!important}[data-testid="stFileUploaderDropzone"] button>*{display:none!important}[data-testid="stFileUploaderDropzone"] button::after{content:"' + browse + '";font:14px monospace}</style>'
+
+def copy_output(text, language=None, wrap_lines=True):
+    """A localized copy control with safe, selectable, multiline text."""
+    import streamlit.components.v1 as components
+    text = str(text)
+    light = st.session_state.get("light_mode", True)
+    paper, ink, line = ("#FFFCF7", "#25231F", "#35312C") if light else ("#191C23", "#F2EADD", "#D0C3B4")
+    height = min(480, max(140, (len(text.splitlines()) + len(text)//70) * 20 + 72))
+    feedback = json.dumps({"copied": t("Көшірілді"), "failed": t("Мәтінді таңдаңыз да, көшіріңіз.")}, ensure_ascii=False)
+    page = """<!doctype html><html lang="LOCALE"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;background:PAPER;color:INK;font:13px monospace}section{border:1px solid LINE;padding:10px;box-sizing:border-box}header{display:flex;justify-content:flex-end;align-items:center;gap:10px;height:30px}button{font:13px monospace;border:1px solid LINE;background:PAPER;color:INK;padding:5px 10px;cursor:pointer}button:focus-visible{outline:2px solid INK}textarea{display:block;width:100%;height:TEXTHEIGHTpx;box-sizing:border-box;resize:none;border:0;padding:8px 0;background:PAPER;color:INK;font:13px/20px monospace;white-space:pre-wrap}</style>
+<section><header><span id="status" role="status"></span><button type="button" id="copy">COPYLABEL</button></header>
+<textarea id="text" readonly aria-label="TEXTLABEL">TEXT</textarea></section>
+<script>const messages=MESSAGES;const text=document.getElementById('text');document.getElementById('copy').addEventListener('click',async()=>{let ok=false;try{await navigator.clipboard.writeText(text.value);ok=true}catch(e){text.focus();text.select();try{ok=document.execCommand('copy')}catch(e){}}document.getElementById('status').textContent=ok?messages.copied:messages.failed});</script></html>"""
+    for key, value in [("LOCALE",locale()),("PAPER",paper),("INK",ink),("LINE",line),("TEXTHEIGHT",str(height-62)),("COPYLABEL",html.escape(t("Көшіру"))),("TEXTLABEL",html.escape(t("Стильдік промпт") if language=="style" else t("Құрылымды ән мәтіні"),quote=True)),("MESSAGES",feedback)]:
+        page = page.replace(key,value)
+    # Insert untrusted text last so it cannot alter template tokens or HTML.
+    page = page.replace(">TEXT</textarea>", ">" + html.escape(text, quote=False) + "</textarea>")
+    components.html(page, height=height, scrolling=False)
 
 def visualizer_copy(source):
     for text in ("Аудионың нақты жиілік спектрі", "Play басыңыз — дыбыс спектрі бірге қозғалады.", "Аудио ойнап жатыр. Қозғалысты азайту режимі қосулы.", "Нақты дыбыс спектрі · MP3 / WAV", "Бұл браузерде спектр қосылмады. Стандартты ойнатқышты пайдаланыңыз.", "Аудио форматын браузер ойната алмады."):
