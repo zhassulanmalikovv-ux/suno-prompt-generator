@@ -5,7 +5,6 @@ import re
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from uuid import UUID
 
 import streamlit as st
 from groq import APIConnectionError, APIError, APIStatusError, AuthenticationError, Groq, RateLimitError
@@ -245,112 +244,6 @@ def apply_selected_preset():
 
 
 
-MAX_MP3_BYTES = 40 * 1024 * 1024
-
-
-def parse_suno_song_id(link: str) -> str:
-    """Accept only canonical Suno song URLs with a UUID."""
-    parsed = urlparse(link.strip())
-    if (parsed.scheme != "https" or parsed.hostname not in {"suno.com", "www.suno.com"}
-            or parsed.username or parsed.password or parsed.port not in (None, 443)):
-        raise ValueError("https://suno.com/song/... форматындағы сілтемені енгізіңіз.")
-    match = re.fullmatch(r"/song/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/?", parsed.path)
-    if not match:
-        raise ValueError("Сілтемеде дұрыс ән ID-сі жоқ. Suno әнінің толық сілтемесін көшіріңіз.")
-    return str(UUID(match.group(1)))
-
-
-def download_checked_mp3(url: str) -> bytes:
-    """Fetch audio only from Suno-owned HTTPS CDN hosts."""
-    parsed = urlparse(url)
-    if (parsed.scheme != "https" or parsed.hostname not in {"cdn1.suno.ai", "cdn2.suno.ai"}
-            or parsed.username or parsed.password or parsed.port not in (None, 443)):
-        raise ValueError("Аудио адресі Suno CDN-ге тиесілі емес.")
-    with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=25) as response:
-        length = response.headers.get("Content-Length")
-        if length and int(length) > MAX_MP3_BYTES:
-            raise ValueError("Файл тым үлкен: ең көбі 40 МБ.")
-        audio = response.read(MAX_MP3_BYTES + 1)
-    if len(audio) > MAX_MP3_BYTES:
-        raise ValueError("Файл тым үлкен: ең көбі 40 МБ.")
-    if not audio or not (audio.startswith(b"ID3") or
-                         (len(audio) >= 2 and audio[0] == 255 and audio[1] & 224 == 224)):
-        raise ValueError("CDN жарамды MP3 файлын қайтармады.")
-    return audio
-
-
-@st.cache_data(ttl=900, max_entries=12, show_spinner=False)
-def fetch_suno_mp3(song_id: str) -> bytes:
-    canonical = str(UUID(song_id))
-    candidates = [f"https://cdn1.suno.ai/{canonical}.mp3",
-                  f"https://cdn2.suno.ai/{canonical}.mp3"]
-    last_error = None
-    for url in candidates:
-        try:
-            return download_checked_mp3(url)
-        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
-            last_error = error
-    # Public song metadata can point to a differently named CDN file.
-    try:
-        import html
-        page_url = f"https://suno.com/song/{canonical}"
-        with urlopen(Request(page_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=20) as response:
-            raw = response.read(3 * 1024 * 1024 + 1)
-        if len(raw) <= 3 * 1024 * 1024:
-            page = html.unescape(raw.decode("utf-8", errors="replace")).replace("\\/", "/").replace("\\u0026", "&")
-            matches = re.findall(r'https://cdn[12]\.suno\.ai/[^\s"<>\\]+\.mp3(?:\?[^\s"<>\\]*)?', page)
-            for url in dict.fromkeys(matches):
-                # Only accept a public URL explicitly tied to this song.
-                if canonical not in url:
-                    continue
-                if url in candidates:
-                    continue
-                try:
-                    return download_checked_mp3(url)
-                except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
-                    last_error = error
-    except (HTTPError, URLError, TimeoutError, OSError):
-        pass
-    if last_error:
-        raise last_error
-    raise ValueError("Бұл әннің ашық MP3 файлы табылмады.")
-
-
-def render_downloader() -> None:
-    st.subheader("♫ Suno Downloader")
-    st.caption("Suno әнінің толық сілтемесін енгізіп, қолжетімді MP3 файлын ойнатыңыз немесе жүктеңіз.")
-    with st.form("suno_downloader_form"):
-        link = st.text_input("Suno әнінің сілтемесі", placeholder="https://suno.com/song/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                             max_chars=2048, key="download_song_url")
-        load = st.form_submit_button("↓ MP3 файлын табу")
-    if load:
-        st.session_state.pop("downloaded_song", None)
-        try:
-            song_id = parse_suno_song_id(link)
-            with st.spinner("MP3 жүктеліп жатыр..."):
-                audio = fetch_suno_mp3(song_id)
-            st.session_state["downloaded_song"] = {"id": song_id, "audio": audio, "link": link.strip()}
-        except ValueError as error:
-            st.error(str(error))
-        except HTTPError as error:
-            if error.code in (403, 404):
-                st.error("Әннің ашық MP3 файлы cdn1/cdn2 серверлерінен және ән бетінен табылмады. Ән жойылған, жабық немесе әлі өңделіп жатқан болуы мүмкін. Suno-да ашып тексеріңіз.")
-            else:
-                st.error(f"CDN файлды қайтармады (HTTP {error.code}). Кейінірек қайталаңыз.")
-        except (URLError, TimeoutError, OSError):
-            st.error("Аудио серверіне қосылу мүмкін болмады. Кейінірек қайталаңыз.")
-    song = st.session_state.get("downloaded_song")
-    if song:
-        if link.strip() != song["link"]:
-            st.info("Төменде алдыңғы сілтеменің аудиосы көрсетілген. Жаңасын алу үшін «MP3 файлын табу» басыңыз.")
-        st.audio(song["audio"], format="audio/mpeg")
-        st.download_button("↓ MP3 жүктеп алу", data=song["audio"],
-                           file_name=f'suno-{song["id"]}.mp3', mime="audio/mpeg",
-                           key="download_mp3_button")
-        st.caption(f'Ән ID: {song["id"]} · {len(song["audio"]) / (1024 * 1024):.1f} МБ')
-
-
-
 def validate_random_concept(content: str) -> dict:
     result = json.loads(content)
     if not isinstance(result, dict) or set(result) != {"title", "concept", "style_prompt", "lyrics"}:
@@ -461,25 +354,16 @@ window.addEventListener('pagehide',()=>{stop();if(ac)ac.close()});
 def render_audio_player(light: bool) -> None:
     import streamlit.components.v1 as components
     st.subheader("♫ Audio Player & Visualizer")
-    st.caption("Компьютерден MP3/WAV жүктеңіз немесе Suno Downloader арқылы алынған әнді таңдаңыз.")
-    downloaded = st.session_state.get("downloaded_song")
-    options = ["Компьютерден файл"] + (["Suno Downloader әні"] if downloaded else [])
-    source = st.radio("Аудио көзі", options, horizontal=True, key="player_source")
+    st.caption("Компьютерден MP3 немесе WAV файлын жүктеңіз.")
     audio = None
     mime = "audio/mpeg"
-    if source == "Компьютерден файл":
-        upload = st.file_uploader("MP3 немесе WAV", type=["mp3", "wav"], key="player_upload")
-        if upload is not None:
-            if upload.size > 20 * 1024 * 1024:
-                st.error("Визуализатор үшін файл 20 МБ-тан аспауы керек.")
-                return
-            audio = upload.getvalue()
-            mime = "audio/wav" if upload.name.lower().endswith(".wav") else "audio/mpeg"
-    else:
-        audio = downloaded["audio"]
-        if len(audio) > 20 * 1024 * 1024:
-            st.error("Визуализатор үшін файл 20 МБ-тан аспауы керек. Downloader арқылы ойната аласыз.")
+    upload = st.file_uploader("MP3 немесе WAV", type=["mp3", "wav"], key="player_upload")
+    if upload is not None:
+        if upload.size > 20 * 1024 * 1024:
+            st.error("Визуализатор үшін файл 20 МБ-тан аспауы керек.")
             return
+        audio = upload.getvalue()
+        mime = "audio/wav" if upload.name.lower().endswith(".wav") else "audio/mpeg"
     if audio:
         st.markdown("**Стандартты ойнатқыш**")
         st.audio(audio, format=mime)
@@ -593,7 +477,7 @@ def main() -> None:
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p></div><div class="studio-hero-art" aria-hidden="true"><div class="studio-orbit"></div><div class="studio-orbit two"></div><div class="studio-orbit three"></div><div class="studio-core"></div><div class="studio-art-label">IDEA → SOUND</div></div></div>
     """, unsafe_allow_html=True)
     st.caption(f"{GENRE_COUNT} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор")
-    studio_tab, downloader_tab, random_tab, player_tab, charts_tab = st.tabs(["♫ Промпт студиясы", "↓ Suno Downloader", "🎲 Suno Randomizer", "♫ Audio Player & Visualizer", "↗ Чарттар"])
+    studio_tab, random_tab, player_tab, charts_tab = st.tabs(["♫ Промпт студиясы", "🎲 Suno Randomizer", "♫ Audio Player & Visualizer", "↗ Чарттар"])
     with studio_tab:
         with st.container(key="preset_library"):
             st.markdown('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>', unsafe_allow_html=True)
@@ -749,8 +633,6 @@ def main() -> None:
                                 unsafe_allow_html=True)
                     st.caption("Suno → ән мәтіні · Көшіру белгішесін басыңыз")
                     st.code(result["structure_lyrics"], language=None, wrap_lines=True)
-    with downloader_tab:
-        render_downloader()
     with random_tab:
         render_randomizer()
     with player_tab:
