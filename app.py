@@ -157,9 +157,18 @@ source language. If translate_to_english is true, write a meaningful, singable
 English translation or English lyrics for the idea unless output_language explicitly
 selects a different language. Do not sing instrumental tags. For less-resourced
 languages, do not claim verified linguistic accuracy.
+Use one JSON newline escape between lyric lines, never a literal backslash followed by n after JSON decoding. Put each section tag on its own line and separate sections with a blank line.
 Return usable lyrics, without explanations or Markdown fences.
 """
 RESPONSE_FORMAT = {"type": "json_object"}
+
+
+def normalize_lyrics(text: str) -> str:
+    """Repair double-escaped line breaks without decoding Unicode lyrics."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # JSON parsing already handles ordinary escapes; some models escape them twice.
+    text = re.sub(r"\\+r\\+n|\\+n|\\+r", "\n", text)
+    return text.strip()
 
 
 def validate_result(content: str) -> dict[str, str]:
@@ -171,6 +180,7 @@ def validate_result(content: str) -> dict[str, str]:
         if not isinstance(result.get(key), str) or not result[key].strip():
             raise ValueError("ЖИ толық нәтиже қайтармады. Қайта көріңіз.")
         result[key] = result[key].strip()
+    result["structure_lyrics"] = normalize_lyrics(result["structure_lyrics"])
     result["style_prompt"] = " ".join(result["style_prompt"].split())
     if len(result["style_prompt"]) > MAX_STYLE_LENGTH:
         raise ValueError(f"Стильдік промпт {MAX_STYLE_LENGTH} символдан асты. Қайта көріңіз.")
@@ -252,6 +262,7 @@ def validate_random_concept(content: str) -> dict:
         if not isinstance(result[key], str) or not result[key].strip():
             raise ValueError("Идея толық емес. Қайта көріңіз.")
         result[key] = result[key].strip()
+    result["lyrics"] = normalize_lyrics(result["lyrics"])
     result["style_prompt"] = " ".join(result["style_prompt"].split())
     if len(result["style_prompt"]) > MAX_STYLE_LENGTH:
         raise ValueError("Стильдік промпт 900 символдан асты. Қайта көріңіз.")
@@ -671,7 +682,7 @@ def main() -> None:
                     st.markdown('<div class="studio-heading"><span aria-hidden="true">≡</span> Құрылымды ән мәтіні</div>',
                                 unsafe_allow_html=True)
                     st.caption("Suno → ән мәтіні · Көшіру белгішесін басыңыз")
-                    st.code(result["structure_lyrics"], language=None, wrap_lines=True)
+                    st.code(normalize_lyrics(result["structure_lyrics"]), language=None, wrap_lines=True)
     with random_tab:
         render_randomizer()
     with player_tab:
