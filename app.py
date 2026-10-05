@@ -641,7 +641,7 @@ def main() -> None:
                         "vocal_placement": placement, "voice_type": voice_type, "voice_range": voice_range,
                         "voice_timbres": timbres if voice_type != "Дауыссыз" else [], "custom_notes": custom_notes, "avoid": avoid}
             with st.container(key="generate_action"):
-                submitted = st.button(t("✦ Suno промптын жасау"), type="primary", use_container_width=True)
+                submitted = st.button(t("✦ Suno промптын жасау"), key="generate_prompt", type="primary", use_container_width=True)
             st.caption(tf('Мәтін генерация кезінде Groq-қа жіберіледі · Стильдік промпт ≤ {0} символ', MAX_STYLE_LENGTH))
         if submitted:
             st.session_state.pop("suno_result", None)

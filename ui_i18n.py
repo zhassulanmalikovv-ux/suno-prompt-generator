@@ -6946,9 +6946,16 @@ def label(value):
 def family_label(value):
     return t("genre_family_latin") if value == "Latin" else t(value)
 
+def freeze_option_labels(options, kwargs):
+    """Keep a widget's labels tied to the locale in which it was rendered."""
+    formatter = kwargs.get("format_func", str)
+    labels = {value: formatter(value) for value in options}
+    kwargs["format_func"] = lambda value: labels.get(value, str(value))
+
 def ui_selectbox(label, options, *, key, index=0, on_change=None, **kwargs):
     """Remount translated option labels while keeping canonical selections."""
     options = list(options)
+    freeze_option_labels(options, kwargs)
     kwargs.setdefault("placeholder", t("Таңдаңыз"))
     initial = None if index is None else options[index]
     current = st.session_state.get(key, initial)
@@ -6967,6 +6974,7 @@ def ui_selectbox(label, options, *, key, index=0, on_change=None, **kwargs):
 
 def ui_multiselect(label, options, *, key, **kwargs):
     options = list(options)
+    freeze_option_labels(options, kwargs)
     kwargs.setdefault("placeholder", t("Таңдаңыз"))
     widget_key = "_locale_" + locale() + "_" + key
     current = st.session_state.get(key, kwargs.get("default", []))
