@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 import streamlit as st
+from typography import studio_font_css, iframe_font_css
 from groq import APIConnectionError, APIError, APIStatusError, AuthenticationError, Groq, RateLimitError
 from catalog import (GENRE_GROUPS, GENRE_COUNT, REGIONAL_STYLES, DEFAULT_REGIONS,
                      DELIVERY, LANGUAGES, INSTRUMENTS, AUTOTUNE,
@@ -387,7 +388,7 @@ def render_audio_player(light: bool) -> None:
         styles = {"Бағандар": "Bars", "Айналы спектр": "Mirrored", "Шеңбер спектрі": "Circular", "Дыбыс толқыны": "Waveform", "Galaxy — бөлшектер": "Galaxy"}
         chosen = ui_selectbox(t("Визуализатор стилі"), list(styles), key="visualizer_style", format_func=kz)
         st.caption(t("Стильді ауыстырғанда ойнатқыш қайта жүктеледі."))
-        components.html(visualizer_html(audio, mime, light, styles[chosen]), height=290, scrolling=False)
+        components.html(visualizer_html(audio, mime, light, styles[chosen]).replace("</style>", iframe_font_css() + "</style>", 1), height=290, scrolling=False)
 
 
 
@@ -526,6 +527,7 @@ def main() -> None:
     st.markdown(studio_css(STUDIO_CSS), unsafe_allow_html=True)
     if light:
         st.markdown(LIGHT_CSS, unsafe_allow_html=True)
+    st.markdown(studio_font_css(), unsafe_allow_html=True)
     st.markdown(t("""
         <div class="studio-topline">
             <div class="studio-brand"><span class="studio-logo" aria-hidden="true">♫</span>SUNO СТУДИЯСЫ</div>
