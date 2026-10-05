@@ -6949,6 +6949,7 @@ def family_label(value):
 def ui_selectbox(label, options, *, key, index=0, on_change=None, **kwargs):
     """Remount translated option labels while keeping canonical selections."""
     options = list(options)
+    kwargs.setdefault("placeholder", t("Таңдаңыз"))
     initial = None if index is None else options[index]
     current = st.session_state.get(key, initial)
     if current is not None and current not in options:
@@ -6966,6 +6967,7 @@ def ui_selectbox(label, options, *, key, index=0, on_change=None, **kwargs):
 
 def ui_multiselect(label, options, *, key, **kwargs):
     options = list(options)
+    kwargs.setdefault("placeholder", t("Таңдаңыз"))
     widget_key = "_locale_" + locale() + "_" + key
     current = st.session_state.get(key, kwargs.get("default", []))
     st.session_state[widget_key] = [value for value in current if value in options]
