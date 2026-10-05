@@ -7014,8 +7014,6 @@ def copy_output(text, language=None, wrap_lines=True):
         page = page.replace(key,value)
     # Insert untrusted text last so it cannot alter template tokens or HTML.
     page = page.replace(">TEXT</textarea>", ">" + html.escape(text, quote=False) + "</textarea>")
-    from typography import iframe_font_css
-    page = page.replace("</style>", iframe_font_css() + "</style>", 1)
     components.html(page, height=height, scrolling=False)
 
 def visualizer_copy(source):
