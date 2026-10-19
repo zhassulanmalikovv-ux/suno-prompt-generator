@@ -119,6 +119,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
  [data-testid="stTabs"] [role="tab"]{flex:1 1 calc(50% - 10px);min-width:0;padding:10px 8px!important;}
 }
 @media(prefers-reduced-motion:reduce){[data-testid="stTabs"] [role="tab"]{transition:none;}}
+[data-testid="stSidebar"] {background:var(--panel)!important;border-right:1px solid var(--line);box-shadow:5px 0 0 var(--shadow);}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] {gap:14px;padding:10px 5px 18px;}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label {display:flex;align-items:center;width:100%;box-sizing:border-box;min-height:56px;padding:12px 14px!important;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);box-shadow:4px 4px 0 var(--shadow);cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {background:var(--mint);color:#182b2b!important;border:2px solid var(--line);transform:translate(2px,2px);box-shadow:2px 2px 0 var(--shadow);}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:hover {transform:translateY(-2px);}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label p {font-weight:700;color:inherit!important;}
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:has(input:focus-visible) {outline:2px solid var(--ink);outline-offset:4px;}
+@media(prefers-reduced-motion:reduce){[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label{transition:none;}}
 .studio-hero-art{position:fixed;top:20vh;right:-30px;width:280px;height:280px;opacity:.12;pointer-events:none;perspective:800px}
 .studio-core{position:absolute;inset:80px;border:1px solid var(--line);background:var(--pink);border-radius:20px;transform:rotateX(25deg) rotateY(30deg) rotateZ(35deg);animation:retro-float 24s ease-in-out infinite}
 .studio-orbit{position:absolute;inset:30px;border:1px solid var(--line);border-radius:50%;transform:rotateX(65deg)}
@@ -498,11 +506,22 @@ def main() -> None:
     if "ui_language" not in st.session_state:
         requested = st.query_params.get("lang", "kk")
         st.session_state["ui_language"] = requested if requested in LANGUAGE_NAMES else "kk"
-    st.set_page_config(page_title=t("Suno — ән промпты студиясы"), page_icon="🎵", layout="wide")
-    st.selectbox("Қазақша / English / Русский", list(LANGUAGE_NAMES),
-                 format_func=LANGUAGE_NAMES.get, key="ui_language", on_change=language_changed, placeholder=t("Таңдаңыз"))
-    st.caption(t("Интерфейс тілі ән мәтінінің тілін өзгертпейді."))
-    light = st.toggle(t("☀ Күн режимі"), value=True, key="light_mode")
+    st.set_page_config(page_title=t("Suno — ән промпты студиясы"), page_icon="🎵", layout="wide", initial_sidebar_state="expanded")
+    # Keep editor widget values when their page is temporarily not rendered.
+    for saved_key in list(st.session_state):
+        if not saved_key.startswith("_") and saved_key not in {"generate_prompt", "randomize_idea", "load_chart", "chart_generate"}:
+            st.session_state[saved_key] = st.session_state[saved_key]
+    with st.sidebar:
+        st.markdown('<div class="studio-brand">♫ SUNO СТУДИЯСЫ</div>', unsafe_allow_html=True)
+        st.caption("СӨЗДЕН ӘУЕНГЕ")
+        page = st.radio("Бөлімдер", ["studio", "random", "daily", "charts"],
+                        format_func=lambda value: {"studio": "♫ Промпт студиясы", "random": "🎲 Идея генераторы", "daily": "✦ Күннің промпттары", "charts": "↗ Чарттар"}[value],
+                        key="navigation_page", label_visibility="collapsed")
+        st.divider()
+        st.selectbox("Қазақша / English / Русский", list(LANGUAGE_NAMES),
+                     format_func=LANGUAGE_NAMES.get, key="ui_language", on_change=language_changed, placeholder=t("Таңдаңыз"))
+        st.caption(t("Интерфейс тілі ән мәтінінің тілін өзгертпейді."))
+        light = st.toggle(t("☀ Күн режимі"), value=True, key="light_mode")
     st.markdown(studio_css(STUDIO_CSS), unsafe_allow_html=True)
     if light:
         st.markdown(LIGHT_CSS, unsafe_allow_html=True)
@@ -511,15 +530,22 @@ def main() -> None:
         <div class="studio-topline">
             <div class="studio-brand"><span class="studio-logo" aria-hidden="true">♫</span>SUNO СТУДИЯСЫ</div>
             <div class="studio-badge">MUSIC DESKTOP · VOL. 01</div>
-        </div><nav class="retro-nav" aria-label="Студия бөлімдері"><a href="#lyrics-window">✎ Өлең</a><a href="#settings-window">♫ Баптаулар</a><a href="#preset-window">▣ Пресеттер</a></nav>
+        </div>
         <div class="studio-hero"><div class="studio-hero-copy"><div class="studio-eyebrow">СӨЗДЕН ӘУЕНГЕ · SUNO AI</div>
         <h1 class="studio-title">Suno — ән промпты студиясы</h1>
         <p class="studio-subtitle">Идеяңызға әуен сыйлаңыз. Өлеңіңізді Suno AI үшін
         кәсіби стильдік промпт пен құрылымды ән мәтініне айналдырыңыз.</p></div><div class="studio-hero-art" aria-hidden="true"><div class="studio-orbit"></div><div class="studio-orbit two"></div><div class="studio-orbit three"></div><div class="studio-core"></div><div class="studio-art-label">IDEA → SOUND</div></div></div>
     """), unsafe_allow_html=True)
     st.caption(tf('{0} жанр / ішкі жанр · бөлек дауыс пен тембр таңдауы · Студиялық конструктор', GENRE_COUNT))
-    studio_tab, random_tab, daily_tab, charts_tab = st.tabs([t(x) for x in ["♫ Промпт студиясы", "🎲 Suno Randomizer", "✦ Күннің промпттары", "↗ Чарттар"]])
-    with studio_tab:
+    tips = {
+        "studio": ("Студиядағы кеңестер", "Алдымен өлең не идея енгізіңіз. Жанр, дауыс пен тембрді таңдаңыз; пресетті бастапқы баптау ретінде қолданыңыз. Дайын стильді Suno-ның Style of Music өрісіне, құрылымды мәтінді Lyrics өрісіне көшіріңіз."),
+        "random": ("Идея іздеуге кеңес", "Күтпеген музыкалық үйлесім алыңыз. Ұнаған нұсқаны көшіріп сақтаңыз; жанр, вокал және аспаптарды өз талғамыңызға бейімдеңіз."),
+        "daily": ("Күннің жинағын пайдалану", "Жинақ күн сайын Қазақстан уақытымен жаңарады. Ұнаған промптты «Көшіру» арқылы Suno-ның Style of Music өрісіне қойыңыз. Ән мәтінін өзіңіз бөлек қосыңыз."),
+        "charts": ("Чартпен жұмыс істеу", "Дереккөз бен елді таңдаңыз, кейін әнді белгілеңіз. Жаңа бағыт жасау үшін Groq кілті қажет. Ұсыныс әннің атауы мен жанрына сүйенеді; аудионы талдамайды.")}
+    title, advice = tips[page]
+    with st.expander("💡 " + title, expanded=True):
+        st.write(advice)
+    if page == "studio":
         with st.container(key="preset_library"):
             st.markdown(t('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>'), unsafe_allow_html=True)
             st.subheader(t("✦ Орындаушыдан шабыт алыңыз"))
@@ -674,11 +700,11 @@ def main() -> None:
                                 unsafe_allow_html=True)
                     st.caption(t("Suno → ән мәтіні · Көшіру белгішесін басыңыз"))
                     copy_output(normalize_lyrics(result["structure_lyrics"]), language=None, wrap_lines=True)
-    with random_tab:
+    elif page == "random":
         render_randomizer()
-    with daily_tab:
+    elif page == "daily":
         render_daily_prompts()
-    with charts_tab:
+    elif page == "charts":
         render_charts()
     st.markdown(t('<div class="studio-footer">ӨЗ ӘУЕНІҢІЗДІ ЖАСАҢЫЗ · ЖАСАНДЫ ИНТЕЛЛЕКТПЕН</div>'), unsafe_allow_html=True)
 

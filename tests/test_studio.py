@@ -23,6 +23,15 @@ def multi(app, key):
 
 
 class StudioTests(unittest.TestCase):
+    def test_sidebar_navigation_preserves_lyrics(self):
+        app = AppTest.from_file(str(ROOT / 'app.py'), default_timeout=30).run()
+        app.text_area(key='lyrics_source').set_value('Менің әнім').run()
+        for page in ('random', 'daily', 'charts', 'studio'):
+            app.radio(key='navigation_page').set_value(page).run()
+            self.assertFalse(app.exception)
+            self.assertTrue(app.expander)
+        self.assertEqual(app.text_area(key='lyrics_source').value, 'Менің әнім')
+
     def test_artist_presets(self):
         from presets import PRESETS, preset_settings
         from ui_kz import VOICE_RANGES, TIMBRES
