@@ -20,12 +20,12 @@ def studio_font_css() -> str:
     font-family:'Smooz','Segoe UI',sans-serif!important; font-weight:400!important;
     font-style:normal!important; letter-spacing:0!important; line-height:1.25!important;
 }
-.studio-title {font-size:clamp(2.5rem,5.8vw,4.8rem)!important;padding:.12em 0!important;overflow:visible;}
+.studio-title {font-size:clamp(1.8rem,2.7vw,2.7rem)!important;padding:.05em 0!important;margin:.2rem 0 .35rem!important;overflow:visible;}
 .studio-brand {font-size:1.35rem!important;}
 .studio-heading {font-size:1.35rem!important;}
 .st-key-preset_library h3 {font-size:1.7rem!important;}
 @media(max-width:768px) {
- .studio-title {font-size:clamp(2.3rem,9vw,3.5rem)!important;overflow-wrap:anywhere;}
+ .studio-title {font-size:clamp(1.7rem,6vw,2.2rem)!important;overflow-wrap:anywhere;}
  .studio-brand {font-size:1.15rem!important;}
  .studio-topline {flex-wrap:wrap;}
  [role="tab"] {font-size:.85rem!important;}

@@ -42,7 +42,7 @@ STUDIO_CSS = """
 :root {color-scheme:dark;--desk:#30303c;--panel:#242731;--paper:#191c23;--ink:#f2eadd;--muted:#c5bdaf;--line:#d0c3b4;--pink:#eab8b5;--mint:#b6ded6;--shadow:#111118}
 .stApp {background-color:var(--desk);background-image:radial-gradient(var(--line) .45px,transparent .45px);background-size:4px 4px;color:var(--ink);font-family:'Courier New','Segoe UI',monospace}
 [data-testid="stHeader"] {background:var(--desk)}
-.block-container {max-width:1180px;padding-top:4rem;padding-bottom:3rem}
+.block-container {max-width:1560px;padding:2.4rem 1.5rem 1.5rem}
 h1,h2,h3,p,label,input,textarea,button {font-family:'Courier New','Segoe UI',monospace}
 .studio-topline {display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--panel);border:1px solid var(--line);box-shadow:3px 3px 0 var(--shadow);padding:.7rem 1rem}
 .studio-brand {font-weight:700;color:var(--ink);font-size:1rem;letter-spacing:-.04em}
@@ -51,15 +51,15 @@ h1,h2,h3,p,label,input,textarea,button {font-family:'Courier New','Segoe UI',mon
 .retro-nav {display:flex;flex-wrap:wrap;gap:0;margin-top:1rem;border:1px solid var(--line);background:var(--panel);box-shadow:3px 3px 0 var(--shadow)}
 .retro-nav a {color:var(--ink)!important;text-decoration:none;padding:.75rem 1rem;border-right:1px solid var(--line);font-size:.8rem}
 .retro-nav a:hover {background:var(--ink);color:var(--panel)!important}
-.studio-hero {padding:2rem 0 1.4rem;position:relative}
+.studio-hero {padding:.55rem 0 .35rem;position:relative}
 .studio-title {color:var(--ink)!important;font-family:Georgia,'Times New Roman',serif!important;font-style:italic;font-size:clamp(2.3rem,5vw,4.2rem)!important;letter-spacing:-.05em;line-height:1.1;margin:.5rem 0 .9rem;padding:0}
-.studio-subtitle {color:var(--ink);max-width:720px;font-size:.95rem;line-height:1.7}
+.studio-subtitle {color:var(--ink);max-width:720px;font-size:.85rem;line-height:1.45;margin:.25rem 0}
 .studio-eyebrow {font-size:.7rem;letter-spacing:.12em;color:var(--muted)}
 .studio-heading {font-size:1rem;font-weight:700;color:var(--ink);padding-bottom:.65rem;border-bottom:1px solid var(--line);margin-bottom:.6rem}
 .studio-heading span {color:var(--ink);margin-right:.5rem}
 .studio-hint {font-size:.78rem;color:var(--muted);line-height:1.6;margin-bottom:1rem}
 .st-key-preset_library,.st-key-lyrics_card,.st-key-settings_card,.st-key-style_result,.st-key-lyrics_result {
- position:relative;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:2.7rem 1.2rem 1.2rem;box-shadow:5px 5px 0 var(--shadow);overflow:hidden
+ position:relative;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:2.1rem .9rem .9rem;box-shadow:5px 5px 0 var(--shadow);overflow:hidden
 }
 .st-key-preset_library::before,.st-key-lyrics_card::before,.st-key-settings_card::before,.st-key-style_result::before,.st-key-lyrics_result::before {
  content:"▣  ДЫБЫС КІТАПХАНАСЫ";position:absolute;top:0;left:0;right:0;padding:.4rem .75rem;background:repeating-linear-gradient(0deg,transparent,transparent 2px,#88888820 2px,#88888820 3px),var(--panel);border-bottom:1px solid var(--line);font:700 .7rem 'Courier New',monospace;letter-spacing:.06em;color:var(--ink)
@@ -127,6 +127,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label p {font-weight:700;color:inherit!important;}
 [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label:has(input:focus-visible) {outline:2px solid var(--ink);outline-offset:4px;}
 @media(prefers-reduced-motion:reduce){[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label{transition:none;}}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {gap:.65rem;}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {padding-top:.5rem;}
+.studio-topline {padding:.45rem .75rem;}
+.studio-subtitle {max-width:100%;}
+[data-testid="stExpander"] summary {padding:.55rem .75rem;}
+.studio-footer {margin-top:1rem;padding-top:.65rem;}
 .studio-hero-art{position:fixed;top:20vh;right:-30px;width:280px;height:280px;opacity:.12;pointer-events:none;perspective:800px}
 .studio-core{position:absolute;inset:80px;border:1px solid var(--line);background:var(--pink);border-radius:20px;transform:rotateX(25deg) rotateY(30deg) rotateZ(35deg);animation:retro-float 24s ease-in-out infinite}
 .studio-orbit{position:absolute;inset:30px;border:1px solid var(--line);border-radius:50%;transform:rotateX(65deg)}
@@ -135,7 +141,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .studio-art-label{display:none}
 @keyframes retro-float{0%,100%{transform:translateY(-15px) rotateX(25deg) rotateY(30deg) rotateZ(35deg)}50%{transform:translateY(15px) rotateX(45deg) rotateY(-25deg) rotateZ(55deg)}}
 @media(max-width:768px){
- .block-container{padding:4rem 1rem 2rem}
+ .block-container{padding:2.8rem .85rem 1.2rem}
  .studio-topline{flex-wrap:wrap;gap:.5rem}
  .studio-brand{font-size:.85rem}
  .retro-nav a{padding:.65rem .7rem;font-size:.7rem;flex:1}
@@ -546,19 +552,20 @@ def main() -> None:
     with st.expander("💡 " + title, expanded=True):
         st.write(advice)
     if page == "studio":
-        with st.container(key="preset_library"):
-            st.markdown(t('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>'), unsafe_allow_html=True)
-            st.subheader(t("✦ Орындаушыдан шабыт алыңыз"))
-            st.caption(t("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз."))
-            preset_group = ui_selectbox(t("Пресет бағыты"), ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group", format_func=kz)
-            choices = [name for name, preset in PRESETS.items() if preset_group == "Барлығы" or preset["category"] == preset_group]
-            ui_selectbox(t("Әнші немесе топ пресеті"), sorted(choices), index=None,
-                         placeholder=tf('{0} орындаушы арасынан іздеңіз', len(choices)), key="artist_preset", format_func=kz,
-                         on_change=apply_selected_preset)
-            st.caption(t("Бұл — жалпы музыкалық сипаттарға негізделген бастапқы баптау. Дауыс көшірмесі емес; жаңа әуен мен мәтінге арналған."))
-            if st.session_state.get("applied_preset"):
-                st.success(tf('{0} бағыты қолданылды. Баптауларды еркін өзгерте аласыз.', kz(st.session_state['applied_preset'])))
-        st.markdown(t('<div class="studio-eyebrow" style="margin-top:2rem">ӨЗ ӘНІҢІЗДІ ҚҰРАСТЫРЫҢЫЗ</div>'), unsafe_allow_html=True)
+        with st.expander(t("✦ Орындаушыдан шабыт алыңыз"), expanded=False):
+            with st.container(key="preset_library"):
+                st.markdown(t('<div id="preset-window" class="studio-eyebrow">ДЫБЫС КІТАПХАНАСЫ</div>'), unsafe_allow_html=True)
+                st.caption(t("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз."))
+                st.caption(t("Музыкалық бағытты бір таңдаумен орнатыңыз, кейін әр бөлшегін өзіңіз өзгертіңіз."))
+                preset_group = ui_selectbox(t("Пресет бағыты"), ["Барлығы"] + sorted({p["category"] for p in PRESETS.values()}), key="preset_group", format_func=kz)
+                choices = [name for name, preset in PRESETS.items() if preset_group == "Барлығы" or preset["category"] == preset_group]
+                ui_selectbox(t("Әнші немесе топ пресеті"), sorted(choices), index=None,
+                             placeholder=tf('{0} орындаушы арасынан іздеңіз', len(choices)), key="artist_preset", format_func=kz,
+                             on_change=apply_selected_preset)
+                st.caption(t("Бұл — жалпы музыкалық сипаттарға негізделген бастапқы баптау. Дауыс көшірмесі емес; жаңа әуен мен мәтінге арналған."))
+                if st.session_state.get("applied_preset"):
+                    st.success(tf('{0} бағыты қолданылды. Баптауларды еркін өзгерте аласыз.', kz(st.session_state['applied_preset'])))
+        st.markdown(t('<div class="studio-eyebrow" style="margin-top:.5rem">ӨЗ ӘНІҢІЗДІ ҚҰРАСТЫРЫҢЫЗ</div>'), unsafe_allow_html=True)
         # Reactive widgets let a genre family immediately change its subgenre/options.
         # Generation remains explicit: changing controls never makes an API call.
         with st.container(key="studio_controls"):
@@ -568,7 +575,7 @@ def main() -> None:
                     st.markdown(t('<div id="lyrics-window" class="studio-heading"><span aria-hidden="true">✎</span> Өлеңіңіз / идеяңыз</div>'
                                 '<div class="studio-hint">Әр ән бір ойдан басталады. Өз мәтініңізді немесе идеяңызды жазыңыз.</div>'),
                                 unsafe_allow_html=True)
-                    source = st.text_area(t("Өлең мәтіні немесе идеясы"), height=300, max_chars=12000, key="lyrics_source",
+                    source = st.text_area(t("Өлең мәтіні немесе идеясы"), height=220, max_chars=12000, key="lyrics_source",
                                           placeholder=t("Түнгі қала, сағыныш пен үміт туралы ән...\n\nНемесе дайын өлеңіңізді осында қойыңыз."))
                     st.caption(t("✦ Мәтіннің бастапқы тілі аударма таңдалмаса сақталады."))
                     language = ui_selectbox(t("Өлеңнің тілі"), list(LANGUAGES), key="output_language", format_func=kz, placeholder=t("Таңдаңыз"))
